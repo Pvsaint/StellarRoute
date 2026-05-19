@@ -7,6 +7,7 @@ pub mod adaptive_routing;
 pub mod consensus;
 pub mod error;
 pub mod fixtures;
+pub mod graph_compaction;
 pub mod health;
 pub mod impact;
 pub mod normalization;
@@ -19,6 +20,10 @@ pub mod simulator;
 pub use adaptive_routing::{AdaptiveError, AdaptivePolicy, AdaptiveRouter, QualityMetrics};
 pub use consensus::{
     ConsensusDiagnostics, ConsensusEngine, ConsensusError, ConsensusPolicy, RouteCandidate,
+};
+pub use graph_compaction::{
+    CompactedGraph, CompactionReport, EdgeKey, GraphCompactionConfig, GraphUpdate,
+    RouteGraphCompactor,
 };
 pub use impact::{AmmQuoteCalculator, OrderbookImpactCalculator};
 pub use optimizer::{

@@ -1,5 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use stellarroute_routing::{
+    graph_compaction::{GraphCompactionConfig, RouteGraphCompactor},
     pathfinder::{LiquidityEdge, Pathfinder, PathfinderConfig},
     AmmQuoteCalculator, RoutingPolicy,
 };
@@ -176,11 +177,34 @@ fn bench_pathfinding_fixture(c: &mut Criterion) {
     });
 }
 
+fn bench_compact_graph_fixture(c: &mut Criterion) {
+    c.bench_function("compact_graph_fixture", |b| {
+        let fixture_data = include_str!("../fixtures/graph_fixture.json");
+        let edges: Vec<LiquidityEdge> =
+            serde_json::from_str(fixture_data).expect("Valid fixture data");
+
+        b.iter(|| {
+            let compacted = RouteGraphCompactor::from_edges(
+                GraphCompactionConfig {
+                    min_liquidity: 100_000,
+                    max_edges_per_pair: 4,
+                    max_anomaly_score: Some(0.95),
+                },
+                black_box(edges.clone()),
+            );
+
+            black_box(compacted.report.reduction_percent());
+            black_box(compacted.edges.len());
+        })
+    });
+}
+
 criterion_group!(
     benches,
     bench_pathfinding_2hop,
     bench_pathfinding_4hop,
     bench_pathfinding_fixture,
+    bench_compact_graph_fixture,
     bench_amm_quote,
     bench_amm_quote_large_trade
 );
