@@ -6,3 +6,6 @@ export type { TokenPairSelectorProps } from "./TokenPairSelector";
 
 export { QuoteStreamStatusIndicator } from "./QuoteStreamStatusIndicator";
 export type { QuoteStreamStatusIndicatorProps } from "./QuoteStreamStatusIndicator";
+
+export { BatchSwapPreview } from "./BatchSwapPreview";
+export type { BatchSwapPreviewProps, BatchSwapLeg } from "./BatchSwapPreview";

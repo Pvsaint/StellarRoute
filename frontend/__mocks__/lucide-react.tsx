@@ -64,3 +64,10 @@ export const InfoIcon = Icon;
 export const Loader2Icon = Icon;
 export const OctagonXIcon = Icon;
 export const TriangleAlertIcon = Icon;
+
+// BatchSwapPreview + ViewState icons
+export const Lock = Icon;
+export const Inbox = Icon;
+export const Plus = Icon;
+export const Shield = Icon;
+export const Zap = Icon;
