@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ThemeSetting } from '@/types/settings';
 import { toast } from 'sonner';
 import { LocaleSelector } from '@/components/settings/LocaleSelector';
+import { HighContrastToggle } from '@/components/settings/HighContrastToggle';
 
 export default function SettingsPage() {
   const { settings, updateSlippage, updateTheme, resetSettings } = useSettings();
@@ -93,6 +94,7 @@ export default function SettingsPage() {
                 </SelectContent>
               </Select>
             </div>
+            <HighContrastToggle />
           </CardContent>
         </Card>
 

@@ -6,10 +6,12 @@ export interface Settings {
   slippageTolerance: number;
   theme: ThemeSetting;
   locale: Locale;
+  highContrast: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   slippageTolerance: 0.5,
   theme: 'system',
   locale: DEFAULT_LOCALE,
+  highContrast: false,
 };

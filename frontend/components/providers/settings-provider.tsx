@@ -12,6 +12,7 @@ interface SettingsContextType {
   updateSlippage: (value: number) => void;
   updateTheme: (theme: ThemeSetting) => void;
   updateLocale: (locale: Settings['locale']) => void;
+  updateHighContrast: (enabled: boolean) => void;
   resetSettings: () => void;
 }
 
@@ -45,6 +46,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   }, [settings]);
 
+  // Apply/remove high-contrast class on <html>
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    if (settings.highContrast) {
+      root.classList.add('high-contrast');
+    } else {
+      root.classList.remove('high-contrast');
+    }
+  }, [settings.highContrast]);
+
   const isValidSlippage = (value: number) => Number.isFinite(value) && value >= 0 && value <= 50;
 
   const updateSlippage = (value: number) => {
@@ -65,6 +77,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings((prev) => ({ ...prev, locale }));
   };
 
+  const updateHighContrast = (enabled: boolean) => {
+    setSettings((prev) => ({ ...prev, highContrast: enabled }));
+  };
+
   const resetSettings = () => {
     setTheme(DEFAULT_SETTINGS.theme);
     setSettings(DEFAULT_SETTINGS);
@@ -77,6 +93,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         updateSlippage,
         updateTheme,
         updateLocale,
+        updateHighContrast,
         resetSettings,
       }}
     >
