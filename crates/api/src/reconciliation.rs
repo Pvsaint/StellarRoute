@@ -212,7 +212,10 @@ impl ReconciliationJob {
     }
 
     /// Check a single cached quote against live computation
-    async fn check_single_quote(&self, sample: &CachedQuoteSample) -> Result<Option<ReconciliationResult>> {
+    async fn check_single_quote(
+        &self,
+        sample: &CachedQuoteSample,
+    ) -> Result<Option<ReconciliationResult>> {
         // This would:
         // 1. Parse the cached quote
         // 2. Compute a fresh quote for the same parameters
@@ -257,9 +260,7 @@ impl ReconciliationJob {
             } else {
                 "low"
             };
-            DRIFT_DETECTIONS
-                .with_label_values(&[severity])
-                .inc();
+            DRIFT_DETECTIONS.with_label_values(&[severity]).inc();
             DRIFT_MAGNITUDE
                 .with_label_values(&[&result.pair])
                 .set(result.drift_pct);

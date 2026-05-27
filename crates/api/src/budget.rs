@@ -3,10 +3,10 @@
 //! This module implements per-stage timing budgets for the quote pipeline
 //! to prevent runaway latency and protect SLOs.
 
+use prometheus::{register_histogram_vec, register_int_counter_vec, HistogramVec, IntCounterVec};
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-use serde::{Deserialize, Serialize};
-use prometheus::{IntCounterVec, HistogramVec, register_int_counter_vec, register_histogram_vec};
 
 lazy_static::lazy_static! {
     /// Counter for budget overrun events by stage

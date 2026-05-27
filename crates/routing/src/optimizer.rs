@@ -566,7 +566,10 @@ mod tests {
     fn test_set_scorer_delegates_to_registry() {
         let mut optimizer = HybridOptimizer::default();
         assert!(optimizer.set_scorer("fee_minimizing").is_ok());
-        assert_eq!(optimizer.scorer_registry.active_scorer_name(), "fee_minimizing");
+        assert_eq!(
+            optimizer.scorer_registry.active_scorer_name(),
+            "fee_minimizing"
+        );
         assert!(optimizer.set_scorer("nonexistent").is_err());
     }
 
@@ -574,8 +577,12 @@ mod tests {
     fn test_with_scorer_registry_constructor() {
         let mut registry = ScorerRegistry::new();
         registry.set_active("output_maximizing").unwrap();
-        let optimizer = HybridOptimizer::with_scorer_registry(PathfinderConfig::default(), registry);
-        assert_eq!(optimizer.scorer_registry.active_scorer_name(), "output_maximizing");
+        let optimizer =
+            HybridOptimizer::with_scorer_registry(PathfinderConfig::default(), registry);
+        assert_eq!(
+            optimizer.scorer_registry.active_scorer_name(),
+            "output_maximizing"
+        );
     }
 
     #[test]

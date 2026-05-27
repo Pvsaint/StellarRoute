@@ -123,8 +123,8 @@ pub async fn post_quote(
         };
         if let Ok(cached_bytes) = state.idempotency_ledger.lookup(&identity).await {
             debug!("Idempotency cache hit for key: {}", key);
-            let quote_resp: crate::models::QuoteResponse =
-                serde_json::from_slice(&cached_bytes).map_err(|e| {
+            let quote_resp: crate::models::QuoteResponse = serde_json::from_slice(&cached_bytes)
+                .map_err(|e| {
                     ApiError::Internal(Arc::new(anyhow::anyhow!(
                         "Failed to deserialise cached quote: {e}"
                     )))

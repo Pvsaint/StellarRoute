@@ -264,11 +264,9 @@ fn bench_scorer_throughput(c: &mut Criterion) {
     let registry = ScorerRegistry::new();
     for (name, scorer) in registry.iter() {
         let scorer_name = name.to_string();
-        group.bench_with_input(
-            BenchmarkId::new("score", &scorer_name),
-            &input,
-            |b, inp| b.iter(|| black_box(scorer.score(black_box(inp)))),
-        );
+        group.bench_with_input(BenchmarkId::new("score", &scorer_name), &input, |b, inp| {
+            b.iter(|| black_box(scorer.score(black_box(inp))))
+        });
     }
 
     // Also benchmark via registry (includes clamping overhead)
