@@ -104,6 +104,7 @@ export function useQuoteStreamStatus(
   // Single pending timer ref — reset on each new connected→reconnecting entry
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     // Immediate transition: offline always wins
     if (rawStatus === "disconnected") {

@@ -40,8 +40,11 @@ export function useOptimisticSwap(options: UseOptimisticSwapOptions): UseOptimis
   const lockRef = useRef(false);
   // Keep rollbackTarget in a ref so the effect closure always has the latest version
   const rollbackTargetRef = useRef(rollbackTarget);
-  rollbackTargetRef.current = rollbackTarget;
   const snapshotRef = useRef<PreSubmitSnapshot | null>(null);
+
+  useEffect(() => {
+    rollbackTargetRef.current = rollbackTarget;
+  }, [rollbackTarget]);
 
   function applyRollback(snap: PreSubmitSnapshot) {
     const target = rollbackTargetRef.current;
@@ -54,6 +57,7 @@ export function useOptimisticSwap(options: UseOptimisticSwapOptions): UseOptimis
   }
 
   // Watch for terminal states → release lock + rollback on failure
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (lifecycle.status === 'confirmed') {
       setSubmitLock(false);

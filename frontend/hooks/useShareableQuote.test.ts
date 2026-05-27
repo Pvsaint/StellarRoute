@@ -18,11 +18,11 @@ describe('useShareableQuote', () => {
     
     vi.mocked(useRouter).mockReturnValue({
       push: mockPush,
-    } as any);
+    } as ReturnType<typeof useRouter>);
 
     vi.mocked(useSearchParams).mockReturnValue({
       get: (key: string) => mockSearchParams.get(key) || null,
-    } as any);
+    } as ReturnType<typeof useSearchParams>);
   });
 
   describe('parseParams', () => {

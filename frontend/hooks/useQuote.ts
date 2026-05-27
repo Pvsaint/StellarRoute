@@ -47,7 +47,6 @@ export function useQuote({ fromToken, toToken, amount, type = 'sell' }: UseQuote
     pendingRetryRemainingMs,
     cancelRetry,
     refresh,
-    lastQuotedAtMs,
   } = useQuoteRefresh(
     fromToken,
     toToken,
@@ -113,6 +112,6 @@ export function useQuote({ fromToken, toToken, amount, type = 'sell' }: UseQuote
     cancelRetry,
     refresh,
     data,
-    lastQuotedAtMs,
+    lastQuotedAtMs: data ? data.timestamp ?? null : null,
   };
 }
