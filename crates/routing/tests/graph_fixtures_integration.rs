@@ -10,6 +10,7 @@
 
 use stellarroute_routing::{
     fixtures::FixtureBuilder,
+    graph_compaction::{EdgeKey, GraphCompactionConfig, GraphUpdate, RouteGraphCompactor},
     optimizer::HybridOptimizer,
     pathfinder::{Pathfinder, PathfinderConfig},
     policy::RoutingPolicy,
@@ -309,4 +310,136 @@ fn scenario_amm_only_policy_excludes_sdex_venues() {
             );
         }
     }
+}
+
+#[test]
+fn graph_compaction_preserves_route_quality_on_fixture_market() {
+    let edges = FixtureBuilder::multi_hop_market().build_edges();
+    let pathfinder = Pathfinder::new(default_config());
+    let policy = RoutingPolicy::new(4);
+    let eurc_key = "EURC:GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP";
+
+    let baseline_paths = pathfinder
+        .find_paths("native", eurc_key, &edges, 100_000_000, &policy)
+        .expect("baseline fixture must route");
+
+    let compacted = RouteGraphCompactor::from_edges(
+        GraphCompactionConfig {
+            min_liquidity: 1_000_000,
+            max_edges_per_pair: 2,
+            max_anomaly_score: Some(0.95),
+        },
+        edges,
+    );
+
+    let compacted_paths = pathfinder
+        .find_paths(
+            "native",
+            eurc_key,
+            &compacted.edges,
+            100_000_000,
+            &policy,
+        )
+        .expect("compacted fixture must still route");
+
+    assert!(
+        compacted.report.reduction_percent() >= 0.0,
+        "report should expose memory reduction data"
+    );
+    assert_eq!(
+        baseline_paths
+            .iter()
+            .map(|path| path.hops.len())
+            .min()
+            .unwrap(),
+        compacted_paths
+            .iter()
+            .map(|path| path.hops.len())
+            .min()
+            .unwrap(),
+        "compaction should preserve best hop-count route quality"
+    );
+}
+
+#[test]
+fn graph_compaction_applies_incremental_removals_without_full_rebuild() {
+    let edges = FixtureBuilder::minimal_market().build_edges();
+    let mut compactor = RouteGraphCompactor::new(GraphCompactionConfig {
+        min_liquidity: 1_000_000,
+        max_edges_per_pair: 4,
+        max_anomaly_score: Some(0.95),
+    });
+
+    let initial = compactor.apply_update(GraphUpdate::from_edges(edges.clone()));
+    assert_eq!(initial.edges.len(), edges.len());
+
+    let removed_key = EdgeKey::from_edge(&edges[0]);
+    let after_remove = compactor.apply_update(GraphUpdate {
+        upserts: Vec::new(),
+        removals: vec![removed_key.clone()],
+    });
+
+    assert_eq!(after_remove.report.input_edges, 0);
+    assert_eq!(after_remove.report.removed_by_key, 1);
+    assert!(
+        after_remove
+            .edges
+            .iter()
+            .all(|edge| EdgeKey::from_edge(edge) != removed_key),
+        "removed edge should not remain in compacted graph"
+    );
+    assert_eq!(compactor.len(), edges.len() - 1);
+}
+
+#[test]
+fn graph_compaction_prunes_redundant_parallel_edges_but_keeps_best_route() {
+    let mut edges = FixtureBuilder::minimal_market().build_edges();
+    let usdc_key = "USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
+
+    for idx in 0..6 {
+        edges.push(stellarroute_routing::LiquidityEdge {
+            from: "native".to_string(),
+            to: usdc_key.to_string(),
+            venue_type: "amm".to_string(),
+            venue_ref: format!("redundant-pool-{idx}"),
+            liquidity: 5_000_000 - (idx as i128 * 100_000),
+            price: 1.0,
+            fee_bps: 30,
+            anomaly_score: 0.0,
+            anomaly_reasons: Vec::new(),
+        });
+    }
+
+    let compacted = RouteGraphCompactor::from_edges(
+        GraphCompactionConfig {
+            min_liquidity: 1_000_000,
+            max_edges_per_pair: 3,
+            max_anomaly_score: Some(0.95),
+        },
+        edges,
+    );
+
+    let native_to_usdc_count = compacted
+        .edges
+        .iter()
+        .filter(|edge| edge.from == "native" && edge.to == usdc_key)
+        .count();
+
+    assert_eq!(native_to_usdc_count, 3);
+    assert!(
+        compacted.report.pruned_pair_overflow > 0,
+        "parallel venues should be compacted"
+    );
+
+    let pathfinder = Pathfinder::new(default_config());
+    let paths = pathfinder
+        .find_paths(
+            "native",
+            usdc_key,
+            &compacted.edges,
+            100_000_000,
+            &default_policy(),
+        )
+        .expect("compacted graph should retain a direct route");
+    assert!(paths.iter().any(|path| path.hops.len() == 1));
 }

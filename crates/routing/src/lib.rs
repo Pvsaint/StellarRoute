@@ -12,6 +12,7 @@ pub mod consensus;
 pub mod error;
 pub mod execution_quality;
 pub mod fixtures;
+pub mod graph_compaction;
 pub mod health;
 pub mod impact;
 pub mod normalization;
@@ -30,6 +31,10 @@ pub use canary::{CanaryConfig, CanaryEvaluation, CanaryEvaluator};
 pub use compaction::{CompactedEdge, CompactedGraph};
 pub use consensus::{
     ConsensusDiagnostics, ConsensusEngine, ConsensusError, ConsensusPolicy, RouteCandidate,
+};
+pub use graph_compaction::{
+    CompactedGraph, CompactionReport, EdgeKey, GraphCompactionConfig, GraphUpdate,
+    RouteGraphCompactor,
 };
 pub use impact::{AmmQuoteCalculator, OrderbookImpactCalculator};
 pub use optimizer::{

@@ -9,6 +9,11 @@
     "pathfind_4hop_realistic": {
       "p50_ns": 32000,
       "p95_ns": 45000
+    },
+    "compact_graph_fixture": {
+      "p50_ns": null,
+      "p95_ns": null,
+      "notes": "Run with `cargo bench -p stellarroute-routing --bench routing_benchmarks compact_graph_fixture`; CompactionReport exposes estimated_bytes_before, estimated_bytes_after, and reduction_percent."
     }
   }
 }
