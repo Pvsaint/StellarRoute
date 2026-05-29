@@ -391,6 +391,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Development Setup**: [docs/development/SETUP.md](docs/development/SETUP.md)
 - **TypeScript SDK Quickstart**: [sdk-js/README.md](sdk-js/README.md)
 - **TypeScript SDK API Docs**: [docs/sdk-js/api](docs/sdk-js/api)
+- **Rust SDK Guide**: [docs/sdk-rust/README.md](docs/sdk-rust/README.md)
 
 ---
 
