@@ -143,6 +143,8 @@ mod tests {
                 to_asset: AssetInfo::native(),
                 price: "1.0000000".to_string(),
                 source: "sdex".to_string(),
+                liquidity_depth: None,
+                fee_bps: None,
             }],
             timestamp: 0,
             expires_at: None,
@@ -156,6 +158,8 @@ mod tests {
                 stale_count: 0,
                 max_staleness_secs: 0,
             }),
+            midpoint: None,
+            spread_bps: None,
         }
     }
 
@@ -165,6 +169,7 @@ mod tests {
             venue_ref: "offer1".to_string(),
             price: "1.0000000".to_string(),
             available_amount: "100.0000000".to_string(),
+            fee_bps: None,
         }]
     }
 

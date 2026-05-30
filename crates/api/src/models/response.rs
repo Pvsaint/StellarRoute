@@ -1,37 +1,100 @@
 //! API response models
 
+use axum::{
+    body::{Body, Bytes},
+    http::{header, HeaderValue, StatusCode},
+    response::{IntoResponse, Response},
+};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use utoipa::ToSchema;
+
+/// Standard API response envelope
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ApiResponse<T> {
+    pub v: u8,
+    pub timestamp: i64,
+    pub request_id: String,
+    pub data: T,
+}
+
+impl<T> ApiResponse<T> {
+    pub fn new(data: T, request_id: impl Into<String>) -> Self {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        Self {
+            v: 1,
+            timestamp,
+            request_id: request_id.into(),
+            data,
+        }
+    }
+}
 
 /// Per-component health status value
 pub type ComponentStatus = String;
 
+/// Health check response — matches GET /health spec
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct HealthResponse {
+    /// Overall service status: "healthy" or "unhealthy"
     pub status: String,
+    /// ISO-8601 UTC timestamp of this check
     pub timestamp: String,
+    /// Crate version
     pub version: String,
+    /// Per-dependency status ("healthy" | "unhealthy")
     pub components: std::collections::HashMap<String, ComponentStatus>,
 }
 
+/// External dependency health probe response for readiness checks.
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct DependenciesHealthResponse {
+    /// Overall dependency status: "ok" or "degraded"
+    pub status: String,
+    /// ISO-8601 UTC timestamp of this check
+    pub timestamp: String,
+    /// Per-dependency status map
+    pub components: std::collections::HashMap<String, String>,
+}
+
+/// Cache metrics response
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CacheMetricsResponse {
     pub quote_hits: u64,
     pub quote_misses: u64,
+    /// Cache hit ratio (hits / (hits + misses))
+    pub hit_ratio: f64,
+    /// Total quote requests rejected because all inputs were stale
     pub stale_quote_rejections: u64,
+    /// Total stale inputs excluded across all successful quotes
     pub stale_inputs_excluded: u64,
 }
 
+/// Trading pair information — matches GET /api/v1/pairs spec
+///
+/// `base` / `counter` are human-readable codes (e.g. "XLM", "USDC").
+/// `base_asset` / `counter_asset` are canonical Stellar asset identifiers
+/// ("native" for XLM, or "CODE:ISSUER" for issued assets).
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TradingPair {
+    /// Human-readable base asset code (e.g. "XLM")
     pub base: String,
+    /// Human-readable counter asset code (e.g. "USDC")
     pub counter: String,
+    /// Canonical base asset identifier ("native" or "CODE:ISSUER")
     pub base_asset: String,
+    /// Canonical counter asset identifier ("native" or "CODE:ISSUER")
     pub counter_asset: String,
+    /// Number of open offers for this pair
     pub offer_count: i64,
+    /// RFC-3339 timestamp of the most recent offer update
     pub last_updated: Option<String>,
 }
 
+/// Asset information
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct AssetInfo {
     pub asset_type: String,
@@ -40,6 +103,7 @@ pub struct AssetInfo {
 }
 
 impl AssetInfo {
+    /// Create a native XLM asset
     pub fn native() -> Self {
         Self {
             asset_type: "native".to_string(),
@@ -48,13 +112,13 @@ impl AssetInfo {
         }
     }
 
+    /// Create a credit asset
     pub fn credit(code: String, issuer: Option<String>) -> Self {
         let asset_type = if code.len() <= 4 {
             "credit_alphanum4"
         } else {
             "credit_alphanum12"
         };
-
         Self {
             asset_type: asset_type.to_string(),
             asset_code: Some(code),
@@ -62,10 +126,15 @@ impl AssetInfo {
         }
     }
 
+    /// Human-readable code ("XLM" for native assets)
     pub fn display_name(&self) -> String {
-        self.asset_code.clone().unwrap_or_else(|| "XLM".to_string())
+        match &self.asset_code {
+            Some(code) => code.clone(),
+            None => "XLM".to_string(),
+        }
     }
 
+    /// Canonical Stellar asset identifier: "native" or "CODE:ISSUER"
     pub fn to_canonical(&self) -> String {
         match (&self.asset_code, &self.asset_issuer) {
             (None, _) => "native".to_string(),
@@ -75,12 +144,20 @@ impl AssetInfo {
     }
 }
 
+/// List of trading pairs
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PairsResponse {
     pub pairs: Vec<TradingPair>,
     pub total: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prev_cursor: Option<String>,
 }
 
+/// Orderbook response
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct OrderbookResponse {
     pub base_asset: AssetInfo,
@@ -90,6 +167,7 @@ pub struct OrderbookResponse {
     pub timestamp: i64,
 }
 
+/// Orderbook price level
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct OrderbookLevel {
     pub price: String,
@@ -97,14 +175,19 @@ pub struct OrderbookLevel {
     pub total: String,
 }
 
+/// Freshness metadata about the data sources used to compute a quote
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct DataFreshness {
+    /// Number of fresh candidates used to compute the quote
     pub fresh_count: usize,
+    /// Number of stale candidates excluded from the quote (zero when all are fresh)
     pub stale_count: usize,
+    /// Maximum observed staleness in seconds among all evaluated candidates
     pub max_staleness_secs: u64,
 }
 
+/// Price quote response with expiry and staleness metadata
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct QuoteResponse {
     pub base_asset: AssetInfo,
@@ -113,36 +196,164 @@ pub struct QuoteResponse {
     pub price: String,
     pub total: String,
     pub quote_type: String,
+    #[serde(default)]
+    pub degraded: bool,
     pub path: Vec<PathStep>,
+    /// Unix timestamp (ms) when this quote was generated
     pub timestamp: i64,
+    /// Unix timestamp (ms) when this quote expires and should be considered stale
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<i64>,
+    /// Unix timestamp (ms) of the underlying data source (e.g., orderbook snapshot)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_timestamp: Option<i64>,
+    /// Time-to-live in seconds for client-side staleness detection
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ttl_seconds: Option<u32>,
+    /// Rationale for quote venue selection
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rationale: Option<QuoteRationaleMetadata>,
+    /// Estimated price impact percentage
     #[serde(skip_serializing_if = "Option::is_none")]
     pub price_impact: Option<String>,
-
-    /// 🔥 NOW FED FROM ROUTING POLICY ENGINE
+    /// Venues excluded from routing and the reason for each exclusion
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exclusion_diagnostics: Option<ExclusionDiagnostics>,
-
+    /// Freshness metadata about the data sources used to compute this quote
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data_freshness: Option<DataFreshness>,
-    /// Cryptographic signature verifying the quote provenance 
+    /// Market midpoint price (average of best bid and best ask across all venues)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub signature: Option<String>,
+    pub midpoint: Option<String>,
+    /// Market spread in basis points
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spread_bps: Option<u32>,
 }
 
+/// Prepared quote payload that can be returned without re-serializing on hot paths.
+#[derive(Debug, Clone)]
+pub struct PreparedQuoteResponse {
+    quote: Option<Arc<QuoteResponse>>,
+    body: Bytes,
+}
+
+impl PreparedQuoteResponse {
+    pub fn from_quote(quote: QuoteResponse) -> crate::error::Result<Self> {
+        let body = serde_json::to_vec(&quote).map(Bytes::from).map_err(|err| {
+            crate::error::ApiError::Internal(Arc::new(anyhow::anyhow!(
+                "failed to serialize quote response: {err}"
+            )))
+        })?;
+
+        Ok(Self {
+            quote: Some(Arc::new(quote)),
+            body,
+        })
+    }
+
+    pub fn from_cached_json(json: String) -> Self {
+        Self {
+            quote: None,
+            body: Bytes::from(json),
+        }
+    }
+
+    pub fn quote(&self) -> Option<&QuoteResponse> {
+        self.quote.as_deref()
+    }
+
+    pub fn into_quote(self) -> crate::error::Result<QuoteResponse> {
+        match self.quote {
+            Some(quote) => Ok(match Arc::try_unwrap(quote) {
+                Ok(owned) => owned,
+                Err(shared) => (*shared).clone(),
+            }),
+            None => serde_json::from_slice(&self.body).map_err(|err| {
+                crate::error::ApiError::Internal(Arc::new(anyhow::anyhow!(
+                    "failed to deserialize cached quote response: {err}"
+                )))
+            }),
+        }
+    }
+
+    pub fn json_bytes(&self) -> &Bytes {
+        &self.body
+    }
+}
+
+impl IntoResponse for PreparedQuoteResponse {
+    fn into_response(self) -> Response {
+        let mut response = Response::new(Body::from(self.body));
+        *response.status_mut() = StatusCode::OK;
+        response.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        response
+    }
+}
+
+/// Response for a batch quote request
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct BatchQuoteResponse {
-    pub quotes: Vec<QuoteResponse>,
+    /// Results in the same order as the request items.
+    pub results: Vec<BatchQuoteItemResult>,
+    /// Number of items that succeeded.
+    pub items_succeeded: usize,
+    /// Number of items that failed (per-item errors, not a batch-level failure).
+    pub items_failed: usize,
+    /// Total items in the batch.
     pub total: usize,
+    /// Unix timestamp (ms) of the shared market snapshot used for all items.
+    /// All quotes in this batch were computed against data no older than this.
+    pub snapshot_timestamp: i64,
 }
 
+/// Result for a single item in a batch quote response.
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct BatchQuoteItemResult {
+    /// Zero-based index of this item in the original request.
+    pub index: usize,
+    /// The quote, present when `status == "ok"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quote: Option<QuoteResponse>,
+    /// Per-item error, present when `status == "error"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<BatchItemError>,
+    /// `"ok"` or `"error"`.
+    pub status: String,
+}
+
+impl BatchQuoteItemResult {
+    pub fn ok(index: usize, quote: QuoteResponse) -> Self {
+        Self {
+            index,
+            quote: Some(quote),
+            error: None,
+            status: "ok".to_string(),
+        }
+    }
+
+    pub fn err(index: usize, error: BatchItemError) -> Self {
+        Self {
+            index,
+            quote: None,
+            error: Some(error),
+            status: "error".to_string(),
+        }
+    }
+}
+
+/// Per-item error detail in a batch response.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct BatchItemError {
+    /// Machine-readable error code.
+    pub code: String,
+    /// Human-readable description.
+    pub message: String,
+}
+
+/// Trading route response (path only, no pricing)
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RouteResponse {
     pub base_asset: AssetInfo,
@@ -150,6 +361,7 @@ pub struct RouteResponse {
     pub amount: String,
     pub path: Vec<PathStep>,
     pub slippage_bps: u32,
+    /// Unix timestamp (ms) when this route was generated
     pub timestamp: i64,
 }
 
@@ -163,6 +375,7 @@ pub struct RoutesResponse {
     pub timestamp: i64,
 }
 
+/// A single proposed N-hop route with pricing metrics
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RouteCandidate {
     pub estimated_output: String,
@@ -172,6 +385,7 @@ pub struct RouteCandidate {
     pub path: Vec<RouteHop>,
 }
 
+/// A specific swap execution step inside a RouteCandidate
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RouteHop {
     pub from_asset: AssetInfo,
@@ -182,9 +396,12 @@ pub struct RouteHop {
     pub source: String,
 }
 
+/// Configuration for quote staleness detection
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct QuoteStalenessConfig {
+    /// Maximum quote age in seconds before considering stale
     pub max_age_seconds: u32,
+    /// Whether to reject stale quotes on the client side
     pub reject_stale: bool,
 }
 
@@ -197,6 +414,34 @@ impl Default for QuoteStalenessConfig {
     }
 }
 
+impl QuoteResponse {
+    /// Check if this quote is considered stale based on the given config
+    pub fn is_stale(&self, config: &QuoteStalenessConfig) -> bool {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+
+        let age_ms = now - self.timestamp;
+        let max_age_ms = config.max_age_seconds as i64 * 1000;
+
+        age_ms > max_age_ms
+    }
+
+    /// Create a quote response with expiry metadata
+    pub fn with_expiry(mut self, ttl_seconds: u32) -> Self {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+
+        self.expires_at = Some(now + (ttl_seconds as i64 * 1000));
+        self.ttl_seconds = Some(ttl_seconds);
+        self
+    }
+}
+
+/// Rationale metadata for quote venue selection
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct QuoteRationaleMetadata {
     pub strategy: String,
@@ -204,6 +449,7 @@ pub struct QuoteRationaleMetadata {
     pub compared_venues: Vec<VenueEvaluation>,
 }
 
+/// Per-venue comparison details for direct route evaluation
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct VenueEvaluation {
     pub source: String,
@@ -212,49 +458,79 @@ pub struct VenueEvaluation {
     pub executable: bool,
 }
 
+/// Step in a trading path
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PathStep {
     pub from_asset: AssetInfo,
     pub to_asset: AssetInfo,
     pub price: String,
-    pub source: String,
+    pub source: String, // "sdex" or "amm:{pool_address}"
+    /// Total liquidity depth available at this hop's price
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub liquidity_depth: Option<String>,
+    /// Fee in basis points for this hop (e.g., 30 for 0.3%)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fee_bps: Option<u32>,
 }
 
-/// 🔥 ROUTING POLICY → API SURFACE EXPOSURE
+// ---------------------------------------------------------------------------
+// Exclusion diagnostics (local API types — routing types lack ToSchema)
+// ---------------------------------------------------------------------------
+
+/// Diagnostics about venues excluded from routing
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ExclusionDiagnostics {
-    pub excluded_routes: Vec<ExcludedRouteInfo>,
+    pub excluded_venues: Vec<ExcludedVenueInfo>,
 }
 
+/// Details about a single excluded venue
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct ExcludedRouteInfo {
-    pub route_id: String,
-    pub reason: String,
+pub struct ExcludedVenueInfo {
+    pub venue_ref: String,
+    pub reason: ExclusionReason,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ErrorResponse {
-    pub error: ApiErrorCode,
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub details: Option<serde_json::Value>,
+/// Reason a venue was excluded from routing
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case", tag = "type")]
+pub enum ExclusionReason {
+    PolicyThreshold { threshold: f64 },
+    Override,
+    StaleData,
+    CircuitBreakerOpen,
+    LiquidityAnomaly,
 }
 
+/// Machine-readable error codes for API failures
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ApiErrorCode {
+    /// Unexpected server-side failure
     InternalError,
+    /// Malformed request or invalid parameters
     BadRequest,
+    /// Requested resource not found
     NotFound,
+    /// Request parameters failed validation
     ValidationError,
+    /// Client exceeded rate limits
     RateLimitExceeded,
+    /// Server is temporarily overloaded
     Overloaded,
+    /// Request lacks valid credentials
     Unauthorized,
+    /// Invalid Stellar asset identifier
     InvalidAsset,
+    /// Invalid amount requested
+    InvalidAmount,
+    /// Invalid slippage tolerance
+    InvalidSlippage,
+    /// Malformed asset identifier format
+    InvalidAssetFormat,
+    /// No executable trading route found
     NoRoute,
+    /// Underlying market data is too stale to provide a quote
     StaleMarketData,
-    /// Quote has expired and cannot be executed
-    QuoteExpired,
 }
 
 impl ApiErrorCode {
@@ -268,11 +544,22 @@ impl ApiErrorCode {
             Self::Overloaded => "overloaded",
             Self::Unauthorized => "unauthorized",
             Self::InvalidAsset => "invalid_asset",
+            Self::InvalidAmount => "invalid_amount",
+            Self::InvalidSlippage => "invalid_slippage",
+            Self::InvalidAssetFormat => "invalid_asset_format",
             Self::NoRoute => "no_route",
             Self::StaleMarketData => "stale_market_data",
-            Self::QuoteExpired => "quote_expired",
         }
     }
+}
+
+/// Error response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ErrorResponse {
+    pub error: ApiErrorCode,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
 }
 
 impl ErrorResponse {
@@ -287,5 +574,164 @@ impl ErrorResponse {
     pub fn with_details(mut self, details: serde_json::Value) -> Self {
         self.details = Some(details);
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // Property test: Round-trip serialization of QuoteResponse with
+    // data_freshness (Property 2 — Validates: Requirements 7.2)
+    // -----------------------------------------------------------------------
+
+    use proptest::prelude::*;
+
+    prop_compose! {
+        fn arb_data_freshness()(
+            fresh_count in 0usize..100,
+            stale_count in 0usize..100,
+            max_staleness_secs in 0u64..3600,
+        ) -> DataFreshness {
+            DataFreshness { fresh_count, stale_count, max_staleness_secs }
+        }
+    }
+
+    proptest! {
+        /// **Property 2: Round-trip — serialize then deserialize any `QuoteResponse`
+        /// with a `data_freshness` field produces a value equal to the original.**
+        ///
+        /// **Validates: Requirements 7.2**
+        #[test]
+        fn data_freshness_round_trip(df in arb_data_freshness()) {
+            let serialized = serde_json::to_string(&df).expect("serialize");
+            let deserialized: DataFreshness = serde_json::from_str(&serialized).expect("deserialize");
+            prop_assert_eq!(df, deserialized);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Unit tests for DataFreshness serialization edge cases (Task 6.2)
+    // -----------------------------------------------------------------------
+
+    /// Req 7.3: Unknown fields inside `data_freshness` are ignored on deserialization.
+    #[test]
+    fn unknown_fields_in_data_freshness_are_ignored() {
+        let json = r#"{"fresh_count":3,"stale_count":1,"max_staleness_secs":45,"unknown_field":"ignored"}"#;
+        let df: DataFreshness =
+            serde_json::from_str(json).expect("should deserialize without error");
+        assert_eq!(df.fresh_count, 3);
+        assert_eq!(df.stale_count, 1);
+        assert_eq!(df.max_staleness_secs, 45);
+    }
+
+    /// Req 7.4: Missing `data_freshness` field in QuoteResponse deserializes to None.
+    #[test]
+    fn missing_data_freshness_deserializes_to_none() {
+        let json = r#"{
+            "base_asset": {"asset_type": "native"},
+            "quote_asset": {"asset_type": "native"},
+            "amount": "1.0000000",
+            "price": "1.0000000",
+            "total": "1.0000000",
+            "quote_type": "sell",
+            "path": [],
+            "timestamp": 1700000000000
+        }"#;
+        let qr: QuoteResponse =
+            serde_json::from_str(json).expect("should deserialize without error");
+        assert!(qr.data_freshness.is_none());
+    }
+
+    /// Req 3.3: stale_count is zero when all candidates are fresh.
+    #[test]
+    fn stale_count_zero_when_all_fresh() {
+        let df = DataFreshness {
+            fresh_count: 5,
+            stale_count: 0,
+            max_staleness_secs: 10,
+        };
+        let serialized = serde_json::to_string(&df).expect("serialize");
+        let deserialized: DataFreshness = serde_json::from_str(&serialized).expect("deserialize");
+        assert_eq!(deserialized.stale_count, 0);
+    }
+
+    /// Req 3.4: DataFreshness serializes with snake_case field names.
+    #[test]
+    fn data_freshness_uses_snake_case_field_names() {
+        let df = DataFreshness {
+            fresh_count: 2,
+            stale_count: 1,
+            max_staleness_secs: 30,
+        };
+        let json = serde_json::to_value(&df).expect("serialize");
+        assert!(
+            json.get("fresh_count").is_some(),
+            "fresh_count key must exist"
+        );
+        assert!(
+            json.get("stale_count").is_some(),
+            "stale_count key must exist"
+        );
+        assert!(
+            json.get("max_staleness_secs").is_some(),
+            "max_staleness_secs key must exist"
+        );
+        // Ensure no camelCase variants leaked
+        assert!(json.get("freshCount").is_none());
+        assert!(json.get("staleCount").is_none());
+        assert!(json.get("maxStalenessSecs").is_none());
+    }
+
+    #[test]
+    fn prepared_quote_response_matches_derived_json_contract() {
+        let quote = QuoteResponse {
+            base_asset: AssetInfo::native(),
+            quote_asset: AssetInfo::credit("USDC".to_string(), Some("issuer".to_string())),
+            amount: "100.0000000".to_string(),
+            price: "1.0000000".to_string(),
+            total: "100.0000000".to_string(),
+            quote_type: "sell".to_string(),
+            degraded: false,
+            path: vec![PathStep {
+                from_asset: AssetInfo::native(),
+                to_asset: AssetInfo::credit("USDC".to_string(), Some("issuer".to_string())),
+                price: "1.0000000".to_string(),
+                source: "sdex".to_string(),
+                liquidity_depth: None,
+                fee_bps: None,
+            }],
+            timestamp: 1_700_000_000_000,
+            expires_at: Some(1_700_000_003_000),
+            source_timestamp: Some(1_700_000_000_000),
+            ttl_seconds: Some(30),
+            rationale: None,
+            price_impact: Some("0.01".to_string()),
+            exclusion_diagnostics: None,
+            data_freshness: Some(DataFreshness {
+                fresh_count: 1,
+                stale_count: 0,
+                max_staleness_secs: 0,
+            }),
+            midpoint: None,
+            spread_bps: None,
+        };
+
+        let expected = serde_json::to_vec(&quote).expect("serialize expected");
+        let prepared = PreparedQuoteResponse::from_quote(quote).expect("prepare quote response");
+
+        assert_eq!(prepared.json_bytes(), &Bytes::from(expected));
+    }
+
+    #[test]
+    fn prepared_quote_response_restores_quote_from_cached_json() {
+        let json = r#"{"base_asset":{"asset_type":"native"},"quote_asset":{"asset_type":"native"},"amount":"1.0000000","price":"1.0000000","total":"1.0000000","quote_type":"sell","path":[],"timestamp":1700000000000}"#;
+
+        let prepared = PreparedQuoteResponse::from_cached_json(json.to_string());
+        let restored = prepared.into_quote().expect("decode cached quote");
+
+        assert_eq!(restored.amount, "1.0000000");
+        assert_eq!(restored.quote_type, "sell");
     }
 }

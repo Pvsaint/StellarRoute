@@ -231,6 +231,7 @@ mod tests {
                 venue_ref: "offer1".to_string(),
                 price: "1.0000000".to_string(),
                 available_amount: "100.0000000".to_string(),
+                fee_bps: None,
             }],
             health_config_snapshot: HealthConfigSnapshot {
                 freshness_threshold_secs_sdex: 30,
@@ -275,6 +276,7 @@ mod tests {
                 venue_ref,
                 price: format!("{:.7}", price_int as f64 / 1_000_000.0),
                 available_amount: format!("{:.7}", amount_int as f64 / 1_000_000.0),
+                fee_bps: None,
             }
         }
     }

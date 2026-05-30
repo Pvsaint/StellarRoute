@@ -5,6 +5,7 @@ pub mod invalidation;
 pub mod invalidation_graph;
 pub mod jitter;
 pub mod prewarmer;
+pub mod prewarm_job;
 
 use redis::{aio::ConnectionManager, AsyncCommands, RedisError};
 use serde::{de::DeserializeOwned, Serialize};
@@ -24,6 +25,7 @@ pub use jitter::JitteredTtl;
 pub use prewarmer::{
     CachePrewarmer, DemandForecaster, KeyDemandEntry, PrewarmError, PrewarmMetrics,
 };
+pub use prewarm_job::{PrewarmConfig, PrewarmJob};
 
 /// Cache manager for Redis operations
 #[derive(Clone)]

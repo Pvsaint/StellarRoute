@@ -163,6 +163,7 @@ mod tests {
                 venue_ref: "offer1".to_string(),
                 price: price.to_string(),
                 available_amount: "100.0000000".to_string(),
+                fee_bps: None,
             }],
             health_config_snapshot: HealthConfigSnapshot {
                 freshness_threshold_secs_sdex: 30,
@@ -187,6 +188,8 @@ mod tests {
                 to_asset: AssetInfo::native(),
                 price: price.to_string(),
                 source: source.to_string(),
+                liquidity_depth: None,
+                fee_bps: None,
             }],
             is_deterministic: true,
             replayed_at: Utc::now(),

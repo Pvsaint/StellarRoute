@@ -243,7 +243,7 @@ impl ReconciliationJob {
         let max_drift = results
             .iter()
             .map(|r| r.drift_pct)
-            .fold(0.0, |a, b| a.max(b));
+            .fold(0.0_f64, |a, b| a.max(b));
 
         let avg_drift = if results.is_empty() {
             0.0

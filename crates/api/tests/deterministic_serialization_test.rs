@@ -110,7 +110,7 @@ fn field_ordering_is_deterministic() {
     let diag = make_sample_diagnostics();
     let json = diag.to_deterministic_json().expect("serialization");
     let json_str = String::from_utf8(json.clone()).expect("valid utf8");
-
+    println!("deterministic json: {}", json_str);
     // Verify that fields appear in sorted order
     let selected_path_pos = json_str
         .find("\"selected_path\"")
@@ -118,14 +118,14 @@ fn field_ordering_is_deterministic() {
     let metrics_pos = json_str.find("\"metrics\"").expect("metrics field");
     let policy_pos = json_str.find("\"policy\"").expect("policy field");
 
-    // Fields should be in alphabetical order
-    assert!(
-        selected_path_pos < metrics_pos,
-        "selected_path should come before metrics"
-    );
+    // Fields should be in alphabetical order (as produced by normalization)
     assert!(
         metrics_pos < policy_pos,
         "metrics should come before policy"
+    );
+    assert!(
+        policy_pos < selected_path_pos,
+        "policy should come before selected_path"
     );
 }
 

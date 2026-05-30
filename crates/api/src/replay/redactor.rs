@@ -97,6 +97,7 @@ mod tests {
                 venue_ref: "offer1".to_string(),
                 price: "1.0000000".to_string(),
                 available_amount: "100.0000000".to_string(),
+                fee_bps: None,
             }],
             health_config_snapshot: HealthConfigSnapshot {
                 freshness_threshold_secs_sdex: 30,
