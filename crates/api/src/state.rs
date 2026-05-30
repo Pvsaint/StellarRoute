@@ -12,6 +12,7 @@ use crate::graph::GraphManager;
 use crate::models::{PreparedQuoteResponse, RoutesResponse};
 use crate::replay::capture::CaptureHook;
 use crate::routes::ws::WsState;
+use crate::webhooks::QuoteExpirationWebhookService;
 use stellarroute_routing::adaptive_timeout::TimeoutController;
 use stellarroute_routing::canary::{CanaryConfig, CanaryEvaluation};
 use stellarroute_routing::health::circuit_breaker::CircuitBreakerRegistry;
@@ -165,6 +166,8 @@ pub struct AppState {
     pub idempotency_ledger: Arc<DedupeLedger>,
     /// External dependency probes and dedicated circuit breakers.
     pub external_dependency_health: Arc<ExternalDependencyHealth>,
+    /// Integrator webhooks for quote expiration and invalidation events.
+    pub quote_expiration_webhooks: Arc<QuoteExpirationWebhookService>,
 }
 
 impl AppState {
@@ -191,6 +194,8 @@ impl AppState {
             ledger
         };
         let external_dependency_health = Arc::new(ExternalDependencyHealth::from_env());
+        let quote_expiration_webhooks =
+            Arc::new(QuoteExpirationWebhookService::new(db.write_pool().clone()));
 
         Self {
             db,
@@ -218,6 +223,7 @@ impl AppState {
             indexer_lag,
             idempotency_ledger,
             external_dependency_health,
+            quote_expiration_webhooks,
         }
     }
 
@@ -258,6 +264,8 @@ impl AppState {
             ledger
         };
         let external_dependency_health = Arc::new(ExternalDependencyHealth::from_env());
+        let quote_expiration_webhooks =
+            Arc::new(QuoteExpirationWebhookService::new(db.write_pool().clone()));
 
         Self {
             db,
@@ -285,6 +293,7 @@ impl AppState {
             indexer_lag,
             idempotency_ledger,
             external_dependency_health,
+            quote_expiration_webhooks,
         }
     }
 

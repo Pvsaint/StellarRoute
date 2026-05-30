@@ -4,9 +4,9 @@ import { useEffect, useId, useState } from 'react';
 import { PathStep } from '@/types';
 import { ChevronDown, ChevronUp, Info, ArrowRight } from 'lucide-react';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AssetIcon } from '@/components/shared/AssetIcon';
+import { VenueTypeBadge } from '@/components/shared/VenueTypeBadge';
 import { cn } from '@/lib/utils';
 import {
   Tooltip,
@@ -188,18 +188,11 @@ function RouteEdgeComponent({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge
-              variant="secondary"
-              className={cn(
-                'mt-2 text-xs max-w-[5.5rem] truncate cursor-help',
-                edge.isSDEX
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-200'
-                  : 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-200'
-              )}
-              tabIndex={0}
-            >
-              {venue}
-            </Badge>
+            <VenueTypeBadge
+              type={edge.isSDEX ? 'SDEX' : 'AMM'}
+              size={16}
+              className="mt-2 cursor-help"
+            />
           </TooltipTrigger>
           <TooltipContent className="p-3">
             <div className="space-y-1.5 text-xs">
@@ -242,18 +235,11 @@ function RouteVerticalConnector({ edge }: { edge: RouteEdge }) {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge
-              variant="secondary"
-              className={cn(
-                'my-1 text-xs max-w-[min(100%,10rem)] truncate cursor-help',
-                edge.isSDEX
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-200'
-                  : 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-200'
-              )}
-              tabIndex={0}
-            >
-              {venue}
-            </Badge>
+            <VenueTypeBadge
+              type={edge.isSDEX ? 'SDEX' : 'AMM'}
+              size={16}
+              className="my-1 cursor-help"
+            />
           </TooltipTrigger>
           <TooltipContent side="right" className="p-3">
             <div className="space-y-1.5 text-xs">
@@ -294,9 +280,7 @@ function RouteDetails({ step, index }: { step: PathStep; index: number }) {
         <span className="text-sm font-medium">
           Hop {index + 1}: {fromCode} → {toCode}
         </span>
-        <Badge variant={isSDEX ? 'default' : 'secondary'}>
-          {isSDEX ? 'SDEX' : poolName || 'AMM Pool'}
-        </Badge>
+        <VenueTypeBadge type={isSDEX ? 'SDEX' : 'AMM'} size={16} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
         <div>
@@ -382,6 +366,10 @@ export function RouteVisualization({
   const { nodes, edges } = buildRouteGraph(path);
   const hopCount = path.length;
   const routeSummary = describeTradeRoute(path);
+  const routeType =
+    edges.every((edge) => edge.isSDEX) ? 'SDEX' :
+    edges.every((edge) => !edge.isSDEX) ? 'AMM' :
+    'Hybrid';
   const breakdownHops = breakdown?.hops ?? hopCount;
   const breakdownFees = breakdown?.totalFees ?? 'N/A';
   const breakdownImpact = breakdown?.priceImpact ?? 'N/A';
@@ -394,6 +382,7 @@ export function RouteVisualization({
             <h3 id={titleId} className="text-sm font-semibold">
               Trade Route
             </h3>
+            <VenueTypeBadge type={routeType} size={16} />
             <Badge variant="outline">
               {hopCount} {hopCount === 1 ? 'Hop' : 'Hops'}
             </Badge>

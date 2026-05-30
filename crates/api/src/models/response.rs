@@ -324,6 +324,29 @@ pub struct BatchQuoteItemResult {
     pub status: String,
 }
 
+/// Registration status for quote-expiration webhook delivery.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct QuoteExpirationWebhookRegistrationResponse {
+    pub consumer_id: String,
+    pub webhook_url: String,
+    pub enabled: bool,
+    /// Present only when the server generated a secret during registration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub generated_signing_secret: Option<String>,
+}
+
+/// Payload sent to integrator webhook endpoints when a quote expires or is invalidated.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct QuoteExpirationWebhookPayload {
+    pub event_id: String,
+    pub consumer_id: String,
+    pub quote_id: String,
+    pub pair: String,
+    pub reason: String,
+    /// Unix timestamp in milliseconds representing event time.
+    pub expired_at: i64,
+}
+
 impl BatchQuoteItemResult {
     pub fn ok(index: usize, quote: QuoteResponse) -> Self {
         Self {

@@ -1,13 +1,10 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { ArrowRight, Trash2 } from "lucide-react"
-"use client";
 import { useCallback, useEffect, useRef, useState } from "react"
-import { formatDistanceToNow } from "date-fns"
 import { ArrowRight, Trash2, Download } from "lucide-react"
+import { formatDistanceToNow } from "date-fns"
 
-import { Badge } from "@/components/ui/badge"
+import { AssetIcon } from "@/components/shared/AssetIcon"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { ActivityTableSkeleton } from "@/components/shared/ActivityTableSkeleton"
@@ -16,7 +13,8 @@ import { ExplorerLink } from "@/components/shared/ExplorerLink"
 import { RelativeTime } from "@/components/shared/RelativeTime"
 import { useTransactionHistory } from "@/hooks/useTransactionHistory"
 import { useVirtualWindow } from "@/hooks/useVirtualWindow"
-import { TransactionRecord } from "@/types/transaction"
+import type { TransactionRecord } from "@/types/transaction"
+import { TransactionStatusBadge } from "@/components/shared/TransactionStatusBadge"
 import {
   Table,
   TableBody,
@@ -129,23 +127,6 @@ export function TransactionHistory({ onRetry }: { onRetry?: (tx: TransactionReco
   const visibleTxs = shouldVirtualize
     ? sortedTxs.slice(virtualWindow.startIndex, virtualWindow.endIndex)
     : sortedTxs
-
-  const getStatusBadge = (status: TransactionRecord["status"]) => {
-    switch (status) {
-      case "confirmed":
-        return <Badge className="bg-success" aria-label="Status: confirmed">Confirmed</Badge>
-      case "failed":
-        return <Badge variant="destructive" aria-label="Status: failed">Failed</Badge>
-      case "pending":
-        return <Badge variant="secondary" aria-label="Status: pending">Pending</Badge>
-      case "submitted":
-        return <Badge variant="secondary" aria-label="Status: submitted">Submitted</Badge>
-      case "dropped":
-        return <Badge variant="outline" aria-label="Status: dropped">Dropped</Badge>
-      default:
-        return <Badge variant="outline" aria-label={`Status: ${status}`}>{status}</Badge>
-    }
-  }
 
   return (
     <Card className="flex flex-col h-[calc(100vh-140px)] m-4 shadow-sm border-primary/10">
@@ -266,14 +247,34 @@ export function TransactionHistory({ onRetry }: { onRetry?: (tx: TransactionReco
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-sm">-{tx.fromAmount}</span>
-                          <span className="text-xs text-muted-foreground">{tx.fromAsset}</span>
+                        <div className="flex items-center gap-2">
+                          <AssetIcon
+                            symbol={tx.fromAsset}
+                            src={tx.fromIcon}
+                            size={20}
+                            className="rounded-full border border-border/60 bg-muted"
+                            imageClassName="h-full w-full"
+                            fallbackClassName="text-[0.65rem]"
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-bold text-sm">-{tx.fromAmount}</span>
+                            <span className="text-xs text-muted-foreground">{tx.fromAsset}</span>
+                          </div>
                         </div>
                         <ArrowRight className="w-4 h-4 text-muted-foreground/50" />
-                        <div className="flex flex-col">
-                          <span className="font-bold text-sm text-success">+{tx.toAmount}</span>
-                          <span className="text-xs text-muted-foreground">{tx.toAsset}</span>
+                        <div className="flex items-center gap-2">
+                          <AssetIcon
+                            symbol={tx.toAsset}
+                            src={tx.toIcon}
+                            size={20}
+                            className="rounded-full border border-border/60 bg-muted"
+                            imageClassName="h-full w-full"
+                            fallbackClassName="text-[0.65rem]"
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-bold text-sm text-success">+{tx.toAmount}</span>
+                            <span className="text-xs text-muted-foreground">{tx.toAsset}</span>
+                          </div>
                         </div>
                       </div>
                     </TableCell>
@@ -281,7 +282,7 @@ export function TransactionHistory({ onRetry }: { onRetry?: (tx: TransactionReco
                       1 {tx.fromAsset} = {tx.exchangeRate} {tx.toAsset}
                     </TableCell>
                     <TableCell>
-                      {getStatusBadge(tx.status)}
+                      <TransactionStatusBadge status={tx.status} size={16} />
                       {tx.errorMessage && (
                         <div
                           className="text-[10px] text-destructive mt-1 max-w-[150px] truncate"

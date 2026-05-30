@@ -107,6 +107,18 @@ pub struct BatchQuoteRequest {
     pub quotes: Vec<QuoteRequestItem>,
 }
 
+/// Register or update quote-expiration webhook settings for an API consumer.
+#[derive(Debug, Deserialize, Clone, ToSchema)]
+pub struct QuoteExpirationWebhookRegistrationRequest {
+    /// HTTPS endpoint that receives quote expiration events.
+    pub webhook_url: String,
+    /// Optional per-consumer signing secret for HMAC signatures.
+    /// If omitted, the server generates one and returns it once.
+    pub signing_secret: Option<String>,
+    /// Whether webhook delivery is enabled for this consumer.
+    pub enabled: Option<bool>,
+}
+
 /// Query parameters for the multiple-routes endpoint
 #[derive(Debug, Deserialize)]
 pub struct RoutesParams {

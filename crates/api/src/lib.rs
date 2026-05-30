@@ -29,6 +29,7 @@ pub mod simulation;
 pub mod state;
 pub mod telemetry;
 pub mod tracing_config;
+pub mod webhooks;
 pub mod worker;
 
 pub use cache::CacheManager;

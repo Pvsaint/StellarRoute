@@ -78,6 +78,8 @@ The API will be available at `http://localhost:3000`. Visit `http://localhost:30
 
 For a more detailed environment setup, see [docs/development/SETUP.md](docs/development/SETUP.md).
 
+For frontend-specific setup and workflows, see [docs/development/frontend-guide.md](docs/development/frontend-guide.md).
+
 ---
 
 ## Development Workflow
@@ -162,6 +164,8 @@ Every code contribution **must** include appropriate tests.
 | Refactor             | Existing tests must continue to pass                                         |
 
 ### Running Tests
+
+For the full matrix of Rust, contract, integration, benchmark, and frontend Vitest guidance, see [docs/development/testing-guide.md](docs/development/testing-guide.md).
 
 ```bash
 # All unit tests (no external deps needed)

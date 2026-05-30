@@ -105,6 +105,39 @@ describe("TransactionHistory", () => {
     expect(screen.getByText("Transaction History")).toBeInTheDocument();
   });
 
+  it("renders asset icons and status badges in transaction rows", async () => {
+    historyState.transactions = [
+      {
+        id: "tx-1",
+        timestamp: Date.now(),
+        fromAsset: "USDC",
+        fromAmount: "10",
+        toAsset: "XLM",
+        toAmount: "9.8",
+        exchangeRate: "0.98",
+        priceImpact: "0.01",
+        minReceived: "9.7",
+        networkFee: "0.001",
+        routePath: [],
+        status: "confirmed",
+        hash: "hash-1",
+        walletAddress: "GBSU...XYZ9",
+        fromIcon: "https://example.com/usdc.svg",
+        toIcon: "https://example.com/xlm.svg",
+      },
+    ];
+
+    render(<TransactionHistory />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Confirmed')).toBeInTheDocument();
+      expect(screen.getByText('-10')).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('img', { name: /USDC icon/i })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /XLM icon/i })).toBeInTheDocument();
+  });
+
   it("should maintain layout stability during loading to loaded transition", async () => {
     const { container } = render(<TransactionHistory />);
 

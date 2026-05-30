@@ -1,14 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useWallet } from '@/hooks/useWallet';
+import { useWalletOnboarding } from '@/hooks/useWalletOnboarding';
+import { WalletConnectionOnboarding } from '@/components/modals/WalletConnectionOnboarding';
 import { AccountSwitcher } from './account-switcher';
+import { Button } from '@/components/ui/button';
 
 const APP_NETWORK = 'TESTNET';
 
 export function WalletButton() {
   const [showQrCode, setShowQrCode] = useState(false);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [walletNetworkForOnboarding, setWalletNetworkForOnboarding] = useState<string | null>(null);
+
   const {
     session,
     availableWallets,
@@ -20,56 +26,58 @@ export function WalletButton() {
     copyAddress,
   } = useWallet();
 
+  const {
+    showOnboarding,
+    isFirstConnection,
+    markOnboardingAsCompleted,
+    markOnboardingAsSeenAndOpened,
+  } = useWalletOnboarding({
+    isConnected: session.isConnected,
+  });
+
   const mismatch =
     session.network &&
     session.network.toUpperCase() !== APP_NETWORK.toUpperCase();
 
+  // Auto-open onboarding for first-time users
+  useEffect(() => {
+    if (showOnboarding && isFirstConnection && !showOnboardingModal) {
+      setShowOnboardingModal(true);
+      markOnboardingAsSeenAndOpened();
+    }
+  }, [showOnboarding, isFirstConnection, showOnboardingModal, markOnboardingAsSeenAndOpened]);
+
+  const handleOnboardingConnect = async (walletId: any) => {
+    try {
+      await connect(walletId);
+      setWalletNetworkForOnboarding(session.network ?? null);
+      markOnboardingAsCompleted();
+    } catch (err) {
+      // Error will be shown in onboarding modal
+      throw err;
+    }
+  };
+
   if (!session.isConnected) {
     return (
-      <div className="flex flex-col gap-2">
-        <div className="flex gap-2">
-          {availableWallets.length > 0 ? (
-            availableWallets.map((wallet) => (
-              <button
-                key={wallet.id}
-                onClick={() => connect(wallet.id)}
-                disabled={loading}
-                className="rounded-md border px-3 py-2 text-sm min-h-[44px]"
-              >
-                {loading ? 'Connecting...' : `Connect ${wallet.label}`}
-              </button>
-            ))
-          ) : (
-            <div className="text-sm">
-              No supported wallet found. Install Freighter or xBull.
-            </div>
-          )}
-        </div>
+      <>
+        <Button
+          onClick={() => setShowOnboardingModal(true)}
+          className="min-h-[44px]"
+        >
+          Connect Wallet
+        </Button>
 
-        {availableWallets.length === 0 && (
-          <div className="text-xs">
-            <a
-              href="https://www.freighter.app/"
-              target="_blank"
-              rel="noreferrer"
-              className="underline"
-            >
-              Install Freighter
-            </a>{' '}
-            |{' '}
-            <a
-              href="https://wallet.xbull.app/"
-              target="_blank"
-              rel="noreferrer"
-              className="underline"
-            >
-              Install xBull
-            </a>
-          </div>
-        )}
-
-        {error && <p className="text-sm text-red-500">{error}</p>}
-      </div>
+        <WalletConnectionOnboarding
+          open={showOnboardingModal}
+          onOpenChange={setShowOnboardingModal}
+          availableWallets={availableWallets}
+          isLoading={loading}
+          error={error}
+          onConnect={handleOnboardingConnect}
+          walletNetwork={walletNetworkForOnboarding}
+        />
+      </>
     );
   }
 

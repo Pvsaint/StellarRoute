@@ -1,5 +1,6 @@
 import { DemoSwap } from "@/components/DemoSwap";
 import { HeroSection } from "@/components/HeroSection";
+import { IconographyLegend } from "@/components/shared/IconographyLegend";
 
 export default function Home() {
   return (
@@ -17,6 +18,10 @@ export default function Home() {
         </div>
 
         <DemoSwap />
+
+        <div className="mt-10">
+          <IconographyLegend />
+        </div>
 
         <div className="mt-12 text-center">
           <a 
