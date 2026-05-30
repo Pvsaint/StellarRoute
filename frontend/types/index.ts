@@ -41,6 +41,23 @@ export interface Orderbook {
   timestamp: number;
 }
 
+export interface PriceHistoryPoint {
+  /** Unix timestamp in milliseconds */
+  timestamp: number;
+  /** Mid-market price as a decimal string */
+  price: string;
+}
+
+export interface PriceHistoryResponse {
+  base_asset: Asset;
+  quote_asset: Asset;
+  window: "24h";
+  source: string;
+  /** Unix timestamp in milliseconds */
+  generated_at: number;
+  points: PriceHistoryPoint[];
+}
+
 export type QuoteType = 'sell' | 'buy';
 
 export interface PathStep {

@@ -175,6 +175,29 @@ pub struct OrderbookLevel {
     pub total: String,
 }
 
+/// Historical price point for charting.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PriceHistoryPoint {
+    /// Unix timestamp in milliseconds.
+    pub timestamp: i64,
+    /// Mid-market price for the sampling bucket.
+    pub price: String,
+}
+
+/// 24h historical price series derived from orderbook snapshots.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PriceHistoryResponse {
+    pub base_asset: AssetInfo,
+    pub quote_asset: AssetInfo,
+    /// Fixed contract window for this endpoint.
+    pub window: String,
+    /// Backend data source for the series.
+    pub source: String,
+    /// Unix timestamp in milliseconds when the series was generated.
+    pub generated_at: i64,
+    pub points: Vec<PriceHistoryPoint>,
+}
+
 /// Freshness metadata about the data sources used to compute a quote
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]

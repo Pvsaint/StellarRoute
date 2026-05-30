@@ -12,9 +12,13 @@ import { PriceImpactIndicator } from "./PriceImpactIndicator";
 import { SpreadIndicator } from "./SpreadIndicator";
 import { Button } from "@/components/ui/button";
 import { useSwapI18n } from "@/lib/swap-i18n";
-import PriceSparkline from "@/components/shared/PriceSparkline";
+import { usePriceHistory } from "@/hooks/useApi";
+import PriceHistorySparkline from "@/components/shared/PriceHistorySparkline";
 
 interface PriceInfoPanelProps {
+  baseAsset?: string;
+  quoteAsset?: string;
+  pairLabel?: string;
   rate?: string;
   priceImpact?: number;
   midpoint?: string;
@@ -27,6 +31,9 @@ interface PriceInfoPanelProps {
 }
 
 export function PriceInfoPanel({
+  baseAsset,
+  quoteAsset,
+  pairLabel,
   rate,
   priceImpact = 0,
   midpoint,
@@ -38,17 +45,12 @@ export function PriceInfoPanel({
   onExportCsv,
 }: PriceInfoPanelProps) {
   const { t } = useSwapI18n();
-
-  // ✅ TEMP MOCK DATA (replace later with real API)
-  const mockPriceData = [
-    { timestamp: 1710000000000, price: 100 },
-    { timestamp: 1710003600000, price: 105 },
-    { timestamp: 1710007200000, price: 102 },
-    { timestamp: 1710010800000, price: 110 },
-    { timestamp: 1710014400000, price: 108 },
-    { timestamp: 1710018000000, price: 112 },
-    { timestamp: 1710021600000, price: 109 },
-  ];
+  const priceHistory = usePriceHistory(
+    baseAsset ?? "",
+    quoteAsset ?? "",
+    60_000,
+    !baseAsset || !quoteAsset,
+  );
 
   if (isLoading) {
     return (
@@ -62,14 +64,16 @@ export function PriceInfoPanel({
 
   return (
     <div className="rounded-2xl border border-border/40 bg-background/40 backdrop-blur-sm p-4 space-y-4 transition-all duration-300 hover:border-primary/20">
-      
-      {/* 🔥 NEW: Sparkline Section */}
-      <div>
-        <div className="text-xs text-muted-foreground mb-1">
-          24h Price Trend
-        </div>
-        <PriceSparkline data={mockPriceData} />
-      </div>
+      <PriceHistorySparkline
+        points={priceHistory.data?.points}
+        loading={priceHistory.loading}
+        title={pairLabel ? `${pairLabel} 24h trend` : "24h price trend"}
+        emptyLabel={
+          priceHistory.error
+            ? "Historical price data is unavailable right now."
+            : "No 24h price data available yet."
+        }
+      />
 
       {/* Existing UI */}
       <div className="flex justify-between items-center text-sm">

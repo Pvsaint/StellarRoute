@@ -269,6 +269,7 @@ impl<T: Send + Sync + 'static> Default for SingleFlight<T> {
 /// Documented key formats:
 /// - pairs:list -> List of all active trading pairs
 /// - orderbook:{base}:{quote} -> Orderbook for a specific pair
+/// - price-history:{base}:{quote} -> 24h historical price series for a pair
 /// - v1:quote:{base}:{quote}:{amount}:{slippage_bps}:{quote_type} -> Result of a quote request
 /// - liquidity:revision:{base}:{quote} -> Latest observed ledger revision for a pair
 pub mod keys {
@@ -285,6 +286,11 @@ pub mod keys {
     /// Cache key for orderbook
     pub fn orderbook(base: &str, quote: &str) -> String {
         format!("orderbook:{}:{}", base, quote)
+    }
+
+    /// Cache key for 24h price history
+    pub fn price_history(base: &str, quote: &str) -> String {
+        format!("price-history:{}:{}", base, quote)
     }
 
     /// Cache key for quote (versioned: v2)
@@ -353,6 +359,10 @@ mod tests {
         assert_eq!(keys::pairs_list(), "pairs:list");
         assert_eq!(keys::pairs_list_page(25, 50), "pairs:list:25:50");
         assert_eq!(keys::orderbook("XLM", "USDC"), "orderbook:XLM:USDC");
+        assert_eq!(
+            keys::price_history("XLM", "USDC"),
+            "price-history:XLM:USDC"
+        );
         assert_eq!(
             keys::quote("xlm", "usdc", "100.0", 50, "sell", true),
             "v2:quote:native:USDC:100.0000000:50:sell:true"

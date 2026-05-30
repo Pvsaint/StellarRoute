@@ -682,6 +682,9 @@ export function SwapCard() {
               )}
             >
               <PriceInfoPanel
+                baseAsset={fromToken}
+                quoteAsset={toToken}
+                pairLabel={`${fromSymbol}/${toSymbol}`}
                 rate={formattedRate}
                 priceImpact={quote.priceImpact}
                 midpoint={quote.data?.midpoint}

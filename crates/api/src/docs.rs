@@ -6,8 +6,8 @@ use crate::models::{
     AssetInfo, BatchItemError, BatchQuoteItemResult, BatchQuoteResponse, CacheMetricsResponse,
     DataFreshness, DependenciesHealthResponse, ErrorResponse, ExcludedVenueInfo,
     ExclusionDiagnostics, ExclusionReason, HealthResponse, OrderbookLevel, OrderbookResponse,
-    PairsResponse, PathStep, QuoteRationaleMetadata, QuoteResponse, RouteResponse, TradingPair,
-    VenueEvaluation,
+    PairsResponse, PathStep, PriceHistoryPoint, PriceHistoryResponse, QuoteRationaleMetadata,
+    QuoteResponse, RouteResponse, TradingPair, VenueEvaluation,
 };
 
 /// OpenAPI documentation
@@ -20,6 +20,7 @@ use crate::models::{
         crate::routes::pairs::list_pairs,
         crate::routes::pairs::list_markets,
         crate::routes::orderbook::get_orderbook,
+        crate::routes::price_history::get_price_history,
         crate::routes::quote::get_quote,
         crate::routes::quote::get_route,
         crate::routes::quote::get_batch_quotes,
@@ -36,6 +37,8 @@ use crate::models::{
         OrderbookResponse,
         OrderbookLevel,
         QuoteResponse,
+        PriceHistoryPoint,
+        PriceHistoryResponse,
         RouteResponse,
         QuoteRationaleMetadata,
         VenueEvaluation,

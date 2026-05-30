@@ -11,6 +11,7 @@
 import type {
   HealthStatus,
   Orderbook,
+  PriceHistoryResponse,
   PairsResponse,
   PriceQuote,
   QuoteType,
@@ -203,6 +204,20 @@ export class StellarRouteClient {
   ): Promise<Orderbook> {
     const path = `/api/v1/orderbook/${encodeURIComponent(base)}/${encodeURIComponent(quote)}`;
     return this.request<Orderbook>(path, opts);
+  }
+
+  /**
+   * GET /api/v1/price-history/{base}/{quote}
+   *
+   * Returns a 24h aggregated price series derived from orderbook snapshots.
+   */
+  getPriceHistory(
+    base: string,
+    quote: string,
+    opts?: FetchOptions,
+  ): Promise<PriceHistoryResponse> {
+    const path = `/api/v1/price-history/${encodeURIComponent(base)}/${encodeURIComponent(quote)}`;
+    return this.request<PriceHistoryResponse>(path, opts);
   }
 
   /**
