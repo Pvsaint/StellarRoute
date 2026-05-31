@@ -3,6 +3,7 @@
 pub mod canary;
 pub mod health;
 pub mod idempotent_quote;
+pub mod integrator_webhooks;
 pub mod kill_switch;
 pub mod metrics;
 pub mod orderbook;
@@ -41,6 +42,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         )
         .route("/api/v1/quote/:base/:quote", get(quote::get_quote))
         .route("/api/v1/quote", post(idempotent_quote::post_quote))
+        .route(
+            "/api/v1/integrator/webhooks/quote-expiration",
+            post(integrator_webhooks::upsert_quote_expiration_webhook),
+        )
         .route(
             "/api/v1/route/:base/:quote",
             get(quote::get_route).route_layer(axum::middleware::from_fn(legacy_route_deprecation)),

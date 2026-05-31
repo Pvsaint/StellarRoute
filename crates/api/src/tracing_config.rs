@@ -14,7 +14,8 @@
 //! | `LOG_FORMAT`             | `json` \| `pretty`            | `pretty`         |
 
 use opentelemetry::trace::TraceContextExt;
-use opentelemetry::{global, KeyValue};
+use opentelemetry::trace::{NonRecordingSpan, SpanContext, SpanId, TraceFlags, TraceId, TraceState};
+use opentelemetry::{global, Context, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::{RandomIdGenerator, Sampler, Tracer};
@@ -183,6 +184,20 @@ impl TraceContext {
         if let Ok(val) = traceparent.parse() {
             headers.insert("traceparent", val);
         }
+    }
+
+    pub fn to_otel_context(&self) -> Option<Context> {
+        let trace_id = TraceId::from_hex(&self.trace_id).ok()?;
+        let span_id = SpanId::from_hex(&self.span_id).ok()?;
+        let span_context = SpanContext::new(
+            trace_id,
+            span_id,
+            TraceFlags::SAMPLED,
+            false,
+            TraceState::default(),
+        );
+
+        Some(Context::current_with_span(NonRecordingSpan::new(span_context)))
     }
 }
 

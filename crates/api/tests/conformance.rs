@@ -1,3 +1,4 @@
+use stellarroute_api::models::request::{QuoteParams, QuoteType};
 use stellarroute_api::models::response::QuoteResponse;
 
 #[test]
@@ -80,4 +81,46 @@ fn test_quote_response_missing_fields_fail() {
         result.is_err(),
         "Should have failed due to missing required fields"
     );
+}
+
+#[test]
+fn test_sparse_fields_conformance_common_combinations() {
+    let combos = [
+        "price,total,timestamp",
+        "base_asset,quote_asset,path",
+        "amount,quote_type,expires_at",
+    ];
+
+    for combo in combos {
+        let params = QuoteParams {
+            amount: None,
+            slippage_bps: None,
+            quote_type: QuoteType::Sell,
+            explain: None,
+            fields: Some(combo.to_string()),
+        };
+
+        assert!(
+            params.validate().is_ok(),
+            "expected valid field combo: {}",
+            combo
+        );
+    }
+}
+
+#[test]
+fn test_sparse_fields_conformance_rejects_unknown() {
+    let params = QuoteParams {
+        amount: None,
+        slippage_bps: None,
+        quote_type: QuoteType::Sell,
+        explain: None,
+        fields: Some("price,unknown_field,total".to_string()),
+    };
+
+    let err = params
+        .validate()
+        .expect_err("unknown sparse field should fail");
+    assert_eq!(err.0, "invalid_fields");
+    assert!(err.1.contains("unknown_field"));
 }

@@ -8,6 +8,28 @@ pub const DEFAULT_SLIPPAGE_BPS: u32 = 50;
 /// Maximum slippage tolerance in basis points (100.00%)
 pub const MAX_SLIPPAGE_BPS: u32 = 10_000;
 
+/// Allowed top-level fields for sparse quote response selection.
+pub const ALLOWED_QUOTE_FIELDS: &[&str] = &[
+    "base_asset",
+    "quote_asset",
+    "amount",
+    "price",
+    "total",
+    "quote_type",
+    "degraded",
+    "path",
+    "timestamp",
+    "expires_at",
+    "source_timestamp",
+    "ttl_seconds",
+    "rationale",
+    "price_impact",
+    "exclusion_diagnostics",
+    "data_freshness",
+    "midpoint",
+    "spread_bps",
+];
+
 /// Query parameters for quote endpoint
 #[derive(Debug, Deserialize, Clone)]
 pub struct QuoteParams {
@@ -20,6 +42,8 @@ pub struct QuoteParams {
     pub quote_type: QuoteType,
     /// Explain the route selection with decision diagnostics
     pub explain: Option<bool>,
+    /// Comma-separated list of quote response fields to include
+    pub fields: Option<String>,
 }
 
 /// Request item for batch quotes
@@ -83,6 +107,18 @@ pub struct BatchQuoteRequest {
     pub quotes: Vec<QuoteRequestItem>,
 }
 
+/// Register or update quote-expiration webhook settings for an API consumer.
+#[derive(Debug, Deserialize, Clone, ToSchema)]
+pub struct QuoteExpirationWebhookRegistrationRequest {
+    /// HTTPS endpoint that receives quote expiration events.
+    pub webhook_url: String,
+    /// Optional per-consumer signing secret for HMAC signatures.
+    /// If omitted, the server generates one and returns it once.
+    pub signing_secret: Option<String>,
+    /// Whether webhook delivery is enabled for this consumer.
+    pub enabled: Option<bool>,
+}
+
 /// Query parameters for the multiple-routes endpoint
 #[derive(Debug, Deserialize)]
 pub struct RoutesParams {
@@ -93,6 +129,17 @@ pub struct RoutesParams {
 }
 
 impl QuoteParams {
+    /// Parse and normalize sparse field selections from `fields` query parameter.
+    pub fn selected_fields(&self) -> Option<Vec<String>> {
+        self.fields.as_ref().map(|raw| {
+            raw.split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect()
+        })
+    }
+
     /// Get the slippage tolerance in basis points, applying default if omitted
     pub fn slippage_bps(&self) -> u32 {
         self.slippage_bps.unwrap_or(DEFAULT_SLIPPAGE_BPS)
@@ -123,6 +170,32 @@ impl QuoteParams {
                     MAX_SLIPPAGE_BPS
                 ),
             ));
+        }
+
+        if let Some(selected) = self.selected_fields() {
+            if selected.is_empty() {
+                return Err((
+                    "invalid_fields".to_string(),
+                    "fields must include at least one field name".to_string(),
+                ));
+            }
+
+            let unknown: Vec<String> = selected
+                .iter()
+                .filter(|field| !ALLOWED_QUOTE_FIELDS.contains(&field.as_str()))
+                .cloned()
+                .collect();
+
+            if !unknown.is_empty() {
+                return Err((
+                    "invalid_fields".to_string(),
+                    format!(
+                        "Unknown field(s): {}. Allowed fields: {}",
+                        unknown.join(", "),
+                        ALLOWED_QUOTE_FIELDS.join(", ")
+                    ),
+                ));
+            }
         }
 
         Ok(())
@@ -221,6 +294,34 @@ mod tests {
     }
 
     #[test]
+    fn validate_accepts_known_sparse_fields() {
+        let params = QuoteParams {
+            amount: None,
+            slippage_bps: None,
+            quote_type: QuoteType::Sell,
+            explain: None,
+            fields: Some("price,total,path".to_string()),
+        };
+
+        assert!(params.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_unknown_sparse_fields() {
+        let params = QuoteParams {
+            amount: None,
+            slippage_bps: None,
+            quote_type: QuoteType::Sell,
+            explain: None,
+            fields: Some("price,foo_field,total".to_string()),
+        };
+
+        let err = params.validate().expect_err("must reject unknown fields");
+        assert_eq!(err.0, "invalid_fields");
+        assert!(err.1.contains("foo_field"));
+    }
+
+    #[test]
     fn test_parse_code_only() {
         let asset = AssetPath::parse("USDC").unwrap();
         assert_eq!(asset.asset_code, "USDC");
@@ -246,6 +347,7 @@ mod tests {
             slippage_bps: None,
             quote_type: QuoteType::Sell,
             explain: None,
+            fields: None,
         };
         assert_eq!(params.slippage_bps(), DEFAULT_SLIPPAGE_BPS);
         assert!(params.validate().is_ok());
@@ -258,6 +360,7 @@ mod tests {
             slippage_bps: Some(100),
             quote_type: QuoteType::Sell,
             explain: None,
+            fields: None,
         };
         assert_eq!(params.slippage_bps(), 100);
         assert!(params.validate().is_ok());
@@ -270,6 +373,7 @@ mod tests {
             slippage_bps: Some(MAX_SLIPPAGE_BPS),
             quote_type: QuoteType::Sell,
             explain: None,
+            fields: None,
         };
         assert_eq!(params.slippage_bps(), MAX_SLIPPAGE_BPS);
         assert!(params.validate().is_ok());
@@ -282,6 +386,7 @@ mod tests {
             slippage_bps: Some(MAX_SLIPPAGE_BPS + 1),
             quote_type: QuoteType::Sell,
             explain: None,
+            fields: None,
         };
         let result = params.validate();
         assert!(result.is_err());
@@ -295,6 +400,7 @@ mod tests {
             slippage_bps: None,
             quote_type: QuoteType::Sell,
             explain: None,
+            fields: None,
         };
         let result = params.validate();
         assert!(result.is_err());
@@ -308,6 +414,7 @@ mod tests {
             slippage_bps: None,
             quote_type: QuoteType::Sell,
             explain: None,
+            fields: None,
         };
         let result = params.validate();
         assert!(result.is_err());

@@ -50,6 +50,7 @@ where
             .map_err(|(code, message)| match code.as_str() {
                 "invalid_amount" => ApiError::InvalidAmount(message),
                 "invalid_slippage" => ApiError::InvalidSlippage(message),
+                "invalid_fields" => ApiError::BadRequest(message),
                 _ => ApiError::Validation(message),
             })?;
 
