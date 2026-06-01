@@ -13,6 +13,7 @@ pub mod graph;
 pub mod handlers;
 pub mod indexer_lag;
 pub mod kill_switch;
+pub mod liquidity_alerts;
 pub mod load_test;
 pub mod metrics;
 pub mod middleware;

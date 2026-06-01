@@ -160,7 +160,7 @@ pub struct PairsResponse {
 }
 
 /// Orderbook response
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct OrderbookResponse {
     pub base_asset: AssetInfo,
     pub quote_asset: AssetInfo,
@@ -170,7 +170,7 @@ pub struct OrderbookResponse {
 }
 
 /// Orderbook price level
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct OrderbookLevel {
     pub price: String,
     pub amount: String,
