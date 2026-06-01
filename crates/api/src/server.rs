@@ -15,6 +15,7 @@ use crate::{
     cache::CacheManager,
     docs::ApiDoc,
     error::Result,
+    health_scheduler::{HealthScheduler, HealthSchedulerConfig},
     middleware::{
         api_versioning_layer, request_id_layer, EndpointConfig, RateLimitLayer, RequestId,
         REQUEST_ID_HEADER,
@@ -79,6 +80,9 @@ impl Server {
             quote_ttl: std::time::Duration::from_secs(config.quote_cache_ttl_seconds),
         };
 
+        // Clone the write pool so the scheduler can use it independently.
+        let scheduler_pool = db.write_pool().clone();
+
         // Try to connect to Redis if URL is provided
         let (state, rate_limit_layer) = if let Some(redis_url) = &config.redis_url {
             match CacheManager::new(redis_url).await {
@@ -127,6 +131,9 @@ impl Server {
                 RateLimitLayer::in_memory(EndpointConfig::default()),
             )
         };
+
+        // Start the background health score recomputation scheduler.
+        HealthScheduler::start(scheduler_pool, HealthSchedulerConfig::from_env());
 
         let app = Self::build_app(state, &config, rate_limit_layer);
 

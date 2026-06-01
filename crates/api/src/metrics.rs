@@ -167,6 +167,25 @@ lazy_static! {
         &["source"]
     )
     .expect("Can't create INDEXER_SYNC_STATUS gauge");
+
+    // ── Health score recomputation metrics ──────────────────────────────────
+
+    /// Histogram of health score recomputation job duration.
+    pub static ref HEALTH_SCORE_JOB_DURATION: HistogramVec = register_histogram_vec!(
+        "stellarroute_health_score_job_duration_seconds",
+        "Duration of health score recomputation cycles",
+        &[],
+        vec![0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0]
+    )
+    .expect("Can't create HEALTH_SCORE_JOB_DURATION histogram");
+
+    /// Counter of health score recomputation failures.
+    pub static ref HEALTH_SCORE_JOB_FAILURES: IntCounterVec = register_int_counter_vec!(
+        "stellarroute_health_score_job_failures_total",
+        "Total number of health score recomputation failures",
+        &[]
+    )
+    .expect("Can't create HEALTH_SCORE_JOB_FAILURES counter");
 }
 
 /// Record kill switch status
@@ -290,6 +309,20 @@ pub fn update_indexer_lag(
     INDEXER_SYNC_STATUS
         .with_label_values(&[source])
         .set(status.as_gauge_value());
+}
+
+// ── Health score metric helpers ─────────────────────────────────────────────
+
+/// Record health score recomputation job duration.
+pub fn record_health_score_duration(duration: Duration) {
+    HEALTH_SCORE_JOB_DURATION
+        .with_label_values(&[])
+        .observe(duration.as_secs_f64());
+}
+
+/// Increment the health score recomputation failure counter.
+pub fn record_health_score_failure() {
+    HEALTH_SCORE_JOB_FAILURES.with_label_values(&[]).inc();
 }
 
 /// Get cache hit ratio for a given cache type
