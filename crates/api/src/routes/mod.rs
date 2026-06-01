@@ -53,6 +53,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
             "/api/v1/batch/quote",
             axum::routing::post(quote::get_batch_quotes),
         )
+        .route(
+            "/api/v1/batch/orderbook",
+            axum::routing::post(orderbook::get_batch_orderbooks),
+        )
         // Replay routes
         .route("/api/v1/replay", get(replay::list_artifacts))
         .route("/api/v1/replay/:id", get(replay::get_artifact))
