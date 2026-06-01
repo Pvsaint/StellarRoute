@@ -2,15 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useTheme } from 'next-themes';
-import {
-  Settings,
-  DEFAULT_SETTINGS,
-  ThemeSetting,
-  AccentColor,
-  FontScale,
-  ACCENT_COLORS,
-  FONT_SCALE_OPTIONS,
-} from '@/types/settings';
+import { Settings, DEFAULT_SETTINGS, ThemeSetting, SlippageProfile } from '@/types/settings';
 import { getUserLocale } from '@/lib/formatting';
 
 const STORAGE_KEY = 'stellar_route_settings';
@@ -20,42 +12,14 @@ interface SettingsContextType {
   updateSlippage: (value: number) => void;
   updateTheme: (theme: ThemeSetting) => void;
   updateLocale: (locale: Settings['locale']) => void;
-  /** Update the accent colour applied to primary actions (issue #521). */
-  updateAccentColor: (color: AccentColor) => void;
-  /** Update the root font-size multiplier (issue #522). */
-  updateFontScale: (scale: FontScale) => void;
   resetSettings: () => void;
+  addProfile: (profile: { name: string; value: number }) => void;
+  updateProfile: (id: string, updates: Partial<SlippageProfile>) => void;
+  deleteProfile: (id: string) => void;
+  selectProfile: (id: string) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Apply the accent colour as CSS custom properties on :root so that every
- * Tailwind `text-primary` / `bg-primary` class picks it up automatically.
- */
-function applyAccentColor(color: AccentColor) {
-  if (typeof document === 'undefined') return;
-  const hex = ACCENT_COLORS[color];
-  document.documentElement.style.setProperty('--primary', hex);
-  document.documentElement.style.setProperty('--ring', hex);
-  document.documentElement.style.setProperty('--sidebar-primary', hex);
-  document.documentElement.style.setProperty('--sidebar-ring', hex);
-}
-
-/**
- * Apply the font-scale multiplier as a CSS custom property on <html>.
- * The base size (16 px) × scale is written to `font-size` directly so that
- * every `rem` value in the UI scales proportionally (issue #522).
- */
-function applyFontScale(scale: FontScale) {
-  if (typeof document === 'undefined') return;
-  const px = 16 * scale;
-  document.documentElement.style.setProperty('font-size', `${px}px`);
-}
-
-// ── Provider ─────────────────────────────────────────────────────────────────
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const { theme, setTheme } = useTheme();
@@ -76,7 +40,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   });
 
-  // Persist to localStorage whenever settings change
+  // Handle local storage saving
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
@@ -85,25 +49,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   }, [settings]);
 
-  // Apply accent colour and font scale on mount and on every change
-  useEffect(() => {
-    applyAccentColor(settings.accentColor);
-  }, [settings.accentColor]);
-
-  useEffect(() => {
-    applyFontScale(settings.fontScale);
-  }, [settings.fontScale]);
-
-  // ── Updaters ───────────────────────────────────────────────────────────────
-
-  const isValidSlippage = (value: number) =>
-    Number.isFinite(value) && value >= 0 && value <= 50;
+  const isValidSlippage = (value: number) => Number.isFinite(value) && value >= 0 && value <= 50;
 
   const updateSlippage = (value: number) => {
     if (!isValidSlippage(value)) {
       console.warn(`Ignored invalid slippage value: ${value}`);
       return;
     }
+
     setSettings((prev) => ({ ...prev, slippageTolerance: value }));
   };
 
@@ -116,21 +69,72 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings((prev) => ({ ...prev, locale }));
   };
 
-  const updateAccentColor = (color: AccentColor) => {
-    setSettings((prev) => ({ ...prev, accentColor: color }));
-  };
-
-  const updateFontScale = (scale: FontScale) => {
-    if (!FONT_SCALE_OPTIONS.includes(scale)) {
-      console.warn(`Ignored invalid font scale: ${scale}`);
-      return;
-    }
-    setSettings((prev) => ({ ...prev, fontScale: scale }));
-  };
-
   const resetSettings = () => {
     setTheme(DEFAULT_SETTINGS.theme);
     setSettings(DEFAULT_SETTINGS);
+  };
+
+  const addProfile = (profile: { name: string; value: number }) => {
+    if (!isValidSlippage(profile.value)) return;
+    const newProfile: SlippageProfile = {
+      id: crypto.randomUUID(),
+      name: profile.name,
+      value: profile.value,
+      isPreset: false,
+    };
+    setSettings((prev) => ({
+      ...prev,
+      slippageProfiles: [...prev.slippageProfiles, newProfile],
+      activeProfileId: newProfile.id,
+      slippageTolerance: newProfile.value,
+    }));
+  };
+
+  const updateProfile = (id: string, updates: Partial<SlippageProfile>) => {
+    if (updates.value !== undefined && !isValidSlippage(updates.value)) return;
+    setSettings((prev) => ({
+      ...prev,
+      slippageProfiles: prev.slippageProfiles.map((p) =>
+        p.id === id && !p.isPreset ? { ...p, ...updates } : p
+      ),
+      slippageTolerance: prev.activeProfileId === id && updates.value !== undefined ? updates.value : prev.slippageTolerance,
+    }));
+  };
+
+  const deleteProfile = (id: string) => {
+    setSettings((prev) => {
+      const profile = prev.slippageProfiles.find((p) => p.id === id);
+      if (profile?.isPreset) return prev; // Cannot delete preset
+      
+      const newProfiles = prev.slippageProfiles.filter((p) => p.id !== id);
+      let newActiveId = prev.activeProfileId;
+      let newSlippage = prev.slippageTolerance;
+      
+      if (prev.activeProfileId === id) {
+        newActiveId = DEFAULT_SETTINGS.activeProfileId;
+        const fallback = newProfiles.find((p) => p.id === newActiveId);
+        newSlippage = fallback ? fallback.value : DEFAULT_SETTINGS.slippageTolerance;
+      }
+
+      return {
+        ...prev,
+        slippageProfiles: newProfiles,
+        activeProfileId: newActiveId,
+        slippageTolerance: newSlippage,
+      };
+    });
+  };
+
+  const selectProfile = (id: string) => {
+    setSettings((prev) => {
+      const profile = prev.slippageProfiles.find((p) => p.id === id);
+      if (!profile) return prev;
+      return {
+        ...prev,
+        activeProfileId: id,
+        slippageTolerance: profile.value,
+      };
+    });
   };
 
   return (
@@ -140,9 +144,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         updateSlippage,
         updateTheme,
         updateLocale,
-        updateAccentColor,
-        updateFontScale,
         resetSettings,
+        addProfile,
+        updateProfile,
+        deleteProfile,
+        selectProfile,
       }}
     >
       {children}

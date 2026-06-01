@@ -6,21 +6,13 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
 use crate::cache::{CacheManager, SingleFlight};
-use crate::dependency_health::ExternalDependencyHealth;
 
 use crate::graph::GraphManager;
-use crate::models::{PreparedQuoteResponse, RoutesResponse};
+use crate::models::{QuoteResponse, RoutesResponse};
 use crate::replay::capture::CaptureHook;
 use crate::routes::ws::WsState;
-use crate::webhooks::QuoteExpirationWebhookService;
-use stellarroute_routing::adaptive_timeout::TimeoutController;
-use stellarroute_routing::canary::{CanaryConfig, CanaryEvaluation};
 use stellarroute_routing::health::circuit_breaker::CircuitBreakerRegistry;
 
-use crate::audit::AuditWriter;
-use crate::exactlyonce::DedupeLedger;
-use crate::indexer_lag::IndexerLagMonitor;
-use crate::liquidity_alerts::LiquidityThinnessAlerts;
 use crate::worker::{JobQueue, RouteWorkerPool, WorkerPoolConfig};
 
 /// Primary database pool for write operations plus an optional replica pool
@@ -45,11 +37,6 @@ impl DatabasePools {
     pub fn write_pool(&self) -> &PgPool {
         &self.primary
     }
-
-    /// Returns the replica pool if one is configured, otherwise `None`.
-    pub fn replica_pool(&self) -> Option<&PgPool> {
-        self.replica.as_ref()
-    }
 }
 
 /// Cache policy configuration
@@ -72,7 +59,6 @@ pub struct CacheMetrics {
     quote_misses: AtomicU64,
     stale_quote_rejections: AtomicU64,
     stale_inputs_excluded: AtomicU64,
-    consistency_violations: AtomicU64,
 }
 
 impl Default for CacheMetrics {
@@ -82,7 +68,6 @@ impl Default for CacheMetrics {
             quote_misses: AtomicU64::new(0),
             stale_quote_rejections: AtomicU64::new(0),
             stale_inputs_excluded: AtomicU64::new(0),
-            consistency_violations: AtomicU64::new(0),
         }
     }
 }
@@ -106,11 +91,6 @@ impl CacheMetrics {
         self.stale_inputs_excluded.fetch_add(n, Ordering::Relaxed);
     }
 
-    /// Increment the snapshot-consistency-violations counter by one.
-    pub fn inc_consistency_violation(&self) {
-        self.consistency_violations.fetch_add(1, Ordering::Relaxed);
-    }
-
     pub fn snapshot(&self) -> (u64, u64) {
         (
             self.quote_hits.load(Ordering::Relaxed),
@@ -123,10 +103,6 @@ impl CacheMetrics {
             self.stale_quote_rejections.load(Ordering::Relaxed),
             self.stale_inputs_excluded.load(Ordering::Relaxed),
         )
-    }
-
-    pub fn snapshot_consistency(&self) -> u64 {
-        self.consistency_violations.load(Ordering::Relaxed)
     }
 }
 
@@ -146,7 +122,7 @@ pub struct AppState {
     /// Route computation worker pool
     pub worker_pool: Arc<RouteWorkerPool>,
     /// Single-flight manager for quotes to prevent stampedes
-    pub quote_single_flight: Arc<SingleFlight<crate::error::Result<(PreparedQuoteResponse, bool)>>>,
+    pub quote_single_flight: Arc<SingleFlight<crate::error::Result<(QuoteResponse, bool)>>>,
 
     /// Optional replay capture hook (None when REPLAY_CAPTURE_ENABLED=false)
     pub replay_capture: Option<Arc<CaptureHook>>,
@@ -164,18 +140,6 @@ pub struct AppState {
     /// Shared liquidity anomaly detector
     pub anomaly_detector:
         Arc<tokio::sync::Mutex<stellarroute_routing::health::anomaly::LiquidityAnomalyDetector>>,
-    /// Canary configuration for side-by-side policy evaluation
-    pub canary_config: Arc<tokio::sync::RwLock<CanaryConfig>>,
-    /// Canary history buffer for operator reporting
-    pub canary_history: Arc<tokio::sync::RwLock<std::collections::VecDeque<CanaryEvaluation>>>,
-    /// Dynamic timeout controller for quote discovery
-    pub timeout_controller: Arc<TimeoutController>,
-    /// Non-blocking audit log writer for route decisions
-    pub audit_writer: Arc<AuditWriter>,
-    /// Indexer lag monitor for sync drift detection
-    pub indexer_lag: Arc<IndexerLagMonitor>,
-    /// Webhook notifier for configured pair depth thresholds
-    pub liquidity_thinness_alerts: Arc<LiquidityThinnessAlerts>,
 }
 
 impl AppState {
@@ -190,21 +154,6 @@ impl AppState {
         graph_manager.clone().start_sync();
 
         let kill_switch = Arc::new(crate::kill_switch::KillSwitchManager::new(None));
-        let audit_writer = Arc::new(AuditWriter::from_env(db.write_pool().clone()));
-        let indexer_lag = Arc::new(IndexerLagMonitor::from_env(db.write_pool().clone()));
-        let liquidity_thinness_alerts = Arc::new(LiquidityThinnessAlerts::from_env());
-        indexer_lag
-            .clone()
-            .start_polling(std::time::Duration::from_secs(30));
-
-        let idempotency_ledger = {
-            let ledger = Arc::new(DedupeLedger::new(60));
-            ledger.clone().spawn_cleanup_task();
-            ledger
-        };
-        let external_dependency_health = Arc::new(ExternalDependencyHealth::from_env());
-        let quote_expiration_webhooks =
-            Arc::new(QuoteExpirationWebhookService::new(db.write_pool().clone()));
 
         Self {
             db,
@@ -214,23 +163,15 @@ impl AppState {
             cache_metrics: Arc::new(CacheMetrics::default()),
             worker_pool,
             quote_single_flight: Arc::new(SingleFlight::<
-                crate::error::Result<(PreparedQuoteResponse, bool)>,
+                crate::error::Result<(QuoteResponse, bool)>,
             >::new()),
             replay_capture: None,
             routes_single_flight: Arc::new(SingleFlight::new()),
-            anomaly_detector: graph_manager.anomaly_detector.clone(),
             graph_manager,
             ws: None,
             circuit_breaker: Arc::new(CircuitBreakerRegistry::default()),
             kill_switch,
-            canary_config: Arc::new(tokio::sync::RwLock::new(CanaryConfig::default())),
-            canary_history: Arc::new(tokio::sync::RwLock::new(
-                std::collections::VecDeque::with_capacity(1000),
-            )),
-            timeout_controller: Arc::new(TimeoutController::new(Default::default())),
-            audit_writer,
-            indexer_lag,
-            liquidity_thinness_alerts,
+            anomaly_detector: graph_manager.anomaly_detector.clone(),
         }
     }
 
@@ -252,12 +193,6 @@ impl AppState {
         let kill_switch = Arc::new(crate::kill_switch::KillSwitchManager::new(Some(
             cache_arc.clone(),
         )));
-        let audit_writer = Arc::new(AuditWriter::from_env(db.write_pool().clone()));
-        let indexer_lag = Arc::new(IndexerLagMonitor::from_env(db.write_pool().clone()));
-        let liquidity_thinness_alerts = Arc::new(LiquidityThinnessAlerts::from_env());
-        indexer_lag
-            .clone()
-            .start_polling(std::time::Duration::from_secs(30));
 
         // Spawn a task to load initial state from Redis
         let ks = kill_switch.clone();
@@ -265,15 +200,6 @@ impl AppState {
             ks.load().await;
             ks.start_sync();
         });
-
-        let idempotency_ledger = {
-            let ledger = Arc::new(DedupeLedger::new(60));
-            ledger.clone().spawn_cleanup_task();
-            ledger
-        };
-        let external_dependency_health = Arc::new(ExternalDependencyHealth::from_env());
-        let quote_expiration_webhooks =
-            Arc::new(QuoteExpirationWebhookService::new(db.write_pool().clone()));
 
         Self {
             db,
@@ -283,23 +209,15 @@ impl AppState {
             cache_metrics: Arc::new(CacheMetrics::default()),
             worker_pool,
             quote_single_flight: Arc::new(SingleFlight::<
-                crate::error::Result<(PreparedQuoteResponse, bool)>,
+                crate::error::Result<(QuoteResponse, bool)>,
             >::new()),
             replay_capture: None,
             routes_single_flight: Arc::new(SingleFlight::new()),
-            anomaly_detector: graph_manager.anomaly_detector.clone(),
             graph_manager,
             ws: None,
             circuit_breaker: Arc::new(CircuitBreakerRegistry::default()),
             kill_switch,
-            canary_config: Arc::new(tokio::sync::RwLock::new(CanaryConfig::default())),
-            canary_history: Arc::new(tokio::sync::RwLock::new(
-                std::collections::VecDeque::with_capacity(1000),
-            )),
-            timeout_controller: Arc::new(TimeoutController::new(Default::default())),
-            audit_writer,
-            indexer_lag,
-            liquidity_thinness_alerts,
+            anomaly_detector: graph_manager.anomaly_detector.clone(),
         }
     }
 
@@ -307,22 +225,7 @@ impl AppState {
     fn create_worker_pool(db: PgPool) -> Arc<RouteWorkerPool> {
         let queue = JobQueue::new(db);
         let config = WorkerPoolConfig::default();
-        let pool = Arc::new(RouteWorkerPool::new(config, queue));
-
-        // Spawn a background task that periodically pushes per-priority queue
-        // depth and virtual-clock values to Prometheus gauges.
-        let pool_ref = pool.clone();
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
-            loop {
-                interval.tick().await;
-                let snapshot = pool_ref.metrics().await;
-                crate::metrics::update_queue_depth_gauges(&snapshot.pending_by_priority);
-                crate::metrics::update_virtual_clock(snapshot.virtual_clock);
-            }
-        });
-
-        pool
+        Arc::new(RouteWorkerPool::new(config, queue))
     }
 
     /// Wrap in Arc for sharing across handlers
@@ -347,32 +250,5 @@ impl AppState {
     pub fn with_ws(mut self, ws: Arc<WsState>) -> Self {
         self.ws = Some(ws);
         self
-    }
-
-    /// Calculate a quantitative health score (0.0 to 1.0) based on dependency health
-    pub async fn calculate_health_score(&self) -> f64 {
-        let mut score = 1.0;
-
-        // Check DB
-        if sqlx::query("SELECT 1")
-            .execute(self.db.read_pool())
-            .await
-            .is_err()
-        {
-            score *= 0.5;
-        }
-
-        // Check Redis
-        if let Some(cache) = &self.cache {
-            if let Ok(mut guard) = cache.try_lock() {
-                if !guard.is_healthy().await {
-                    score *= 0.8;
-                }
-            }
-        }
-
-        // Check Horizon (simplified active probe)
-        // In a real app, this would be more sophisticated
-        score
     }
 }
