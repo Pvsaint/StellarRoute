@@ -6,8 +6,9 @@ use crate::models::{
     AssetInfo, BatchItemError, BatchQuoteItemResult, BatchQuoteResponse, CacheMetricsResponse,
     DataFreshness, DependenciesHealthResponse, ErrorResponse, ExcludedVenueInfo,
     ExclusionDiagnostics, ExclusionReason, HealthResponse, OrderbookLevel, OrderbookResponse,
-    PairsResponse, PathStep, QuoteRationaleMetadata, QuoteResponse, RouteResponse, TradingPair,
-    VenueEvaluation,
+    PairsResponse, PathStep, QuoteExpirationWebhookPayload,
+    QuoteExpirationWebhookRegistrationResponse, QuoteRationaleMetadata, QuoteResponse,
+    RouteResponse, TradingPair, VenueEvaluation,
 };
 
 /// OpenAPI documentation
@@ -23,6 +24,7 @@ use crate::models::{
         crate::routes::quote::get_quote,
         crate::routes::quote::get_route,
         crate::routes::quote::get_batch_quotes,
+        crate::routes::integrator_webhooks::upsert_quote_expiration_webhook,
         crate::routes::kill_switch::get_kill_switch,
         crate::routes::kill_switch::update_kill_switch,
     ),
@@ -47,16 +49,20 @@ use crate::models::{
         BatchQuoteResponse,
         BatchQuoteItemResult,
         BatchItemError,
+        QuoteExpirationWebhookRegistrationResponse,
+        QuoteExpirationWebhookPayload,
         ErrorResponse,
         crate::models::request::BatchQuoteRequest,
         crate::models::request::QuoteRequestItem,
         crate::models::request::QuoteType,
+        crate::models::request::QuoteExpirationWebhookRegistrationRequest,
         crate::kill_switch::KillSwitchState,
     )),
     tags(
         (name = "health", description = "Health check endpoints"),
         (name = "trading", description = "Trading and market data endpoints"),
         (name = "admin", description = "Administrative endpoints"),
+        (name = "integrator", description = "Integrator configuration and webhook endpoints"),
     ),
     info(
         title = "StellarRoute API",

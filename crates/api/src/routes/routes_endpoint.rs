@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tracing::debug;
 
 use stellarroute_routing::health::policy::ExclusionPolicy;
+use stellarroute_routing::health::scorer::VenueType;
 use stellarroute_routing::optimizer::HybridOptimizer;
 use stellarroute_routing::policy::RoutingPolicy;
 
@@ -18,6 +19,7 @@ use crate::{
         request::{AssetPath, RoutesParams},
         ApiResponse, AssetInfo, RouteCandidate, RouteHop, RoutesResponse,
     },
+    ordering::{sort_routes, OrderingConfig},
     state::AppState,
 };
 
@@ -313,6 +315,9 @@ pub async fn get_routes(
             for (path, metric) in diag.alternatives.iter().take(limit_param - 1) {
                 routes.push(build_candidate(path, metric));
             }
+
+            // Apply deterministic ordering to routes
+            sort_routes(&mut routes, &OrderingConfig::default());
 
             Arc::new(Ok(RoutesResponse {
                 base_asset: asset_path_to_info(&base_asset),

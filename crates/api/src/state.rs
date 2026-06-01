@@ -6,16 +6,19 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
 use crate::cache::{CacheManager, SingleFlight};
+use crate::dependency_health::ExternalDependencyHealth;
 
 use crate::graph::GraphManager;
 use crate::models::{PreparedQuoteResponse, RoutesResponse};
 use crate::replay::capture::CaptureHook;
 use crate::routes::ws::WsState;
+use crate::webhooks::QuoteExpirationWebhookService;
 use stellarroute_routing::adaptive_timeout::TimeoutController;
 use stellarroute_routing::canary::{CanaryConfig, CanaryEvaluation};
 use stellarroute_routing::health::circuit_breaker::CircuitBreakerRegistry;
 
 use crate::audit::AuditWriter;
+use crate::exactlyonce::DedupeLedger;
 use crate::indexer_lag::IndexerLagMonitor;
 use crate::liquidity_alerts::LiquidityThinnessAlerts;
 use crate::worker::{JobQueue, RouteWorkerPool, WorkerPoolConfig};
@@ -41,6 +44,11 @@ impl DatabasePools {
 
     pub fn write_pool(&self) -> &PgPool {
         &self.primary
+    }
+
+    /// Returns the replica pool if one is configured, otherwise `None`.
+    pub fn replica_pool(&self) -> Option<&PgPool> {
+        self.replica.as_ref()
     }
 }
 
@@ -178,6 +186,15 @@ impl AppState {
             .clone()
             .start_polling(std::time::Duration::from_secs(30));
 
+        let idempotency_ledger = {
+            let ledger = Arc::new(DedupeLedger::new(60));
+            ledger.clone().spawn_cleanup_task();
+            ledger
+        };
+        let external_dependency_health = Arc::new(ExternalDependencyHealth::from_env());
+        let quote_expiration_webhooks =
+            Arc::new(QuoteExpirationWebhookService::new(db.write_pool().clone()));
+
         Self {
             db,
             cache: None,
@@ -237,6 +254,15 @@ impl AppState {
             ks.load().await;
             ks.start_sync();
         });
+
+        let idempotency_ledger = {
+            let ledger = Arc::new(DedupeLedger::new(60));
+            ledger.clone().spawn_cleanup_task();
+            ledger
+        };
+        let external_dependency_health = Arc::new(ExternalDependencyHealth::from_env());
+        let quote_expiration_webhooks =
+            Arc::new(QuoteExpirationWebhookService::new(db.write_pool().clone()));
 
         Self {
             db,

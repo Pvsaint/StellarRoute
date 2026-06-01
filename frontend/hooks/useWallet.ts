@@ -7,7 +7,7 @@ import {
   getAvailableWallets,
   signTransactionStub,
 } from "@/lib/wallet";
-import type { SupportedWallet, WalletSession } from "@/lib/wallet/types";
+import type { SupportedWallet, WalletSession, AvailableWallet } from "@/lib/wallet/types";
 
 const initialState: WalletSession = {
   walletId: null,
@@ -22,9 +22,7 @@ const initialState: WalletSession = {
  */
 export function useWallet() {
   const [session, setSession] = useState<WalletSession>(initialState);
-  const [availableWallets, setAvailableWallets] = useState<
-    { id: SupportedWallet; label: string }[]
-  >([]);
+  const [availableWallets, setAvailableWallets] = useState<AvailableWallet[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

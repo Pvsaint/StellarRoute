@@ -44,7 +44,7 @@ pub struct SwapPath {
     pub estimated_output: i128,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PathHop {
     pub source_asset: String,
     pub destination_asset: String,
@@ -168,6 +168,7 @@ impl Pathfinder {
                 continue;
             }
 
+            // Explore neighbors
             for edge in graph.get_neighbors(current_idx) {
                 let venue_type = if edge.venue_type_idx == 1 {
                     "amm"

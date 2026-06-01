@@ -7,6 +7,7 @@ use crate::db::Database;
 use crate::error::Result;
 use crate::models::{PoolReserve, PoolState};
 use crate::soroban::{SorobanRpc, SorobanRpcClient};
+use crate::telemetry::TraceContext;
 use chrono::Utc;
 use serde_json;
 use sqlx::Row;
@@ -73,6 +74,7 @@ impl AmmAggregator {
     }
 
     /// Perform a single aggregation cycle
+    #[tracing::instrument(skip(self))]
     pub async fn aggregate_once(&self) -> Result<()> {
         debug!("Starting AMM pool aggregation cycle");
 
@@ -211,6 +213,7 @@ impl AmmAggregator {
     }
 
     /// Process a single pool
+    #[tracing::instrument(skip(self), fields(pool_address = %pool_address))]
     async fn process_pool(&self, pool_address: &str) -> Result<()> {
         // Get pool state from Soroban RPC
         let state = self.get_pool_state(pool_address).await?;
@@ -297,9 +300,11 @@ impl AmmAggregator {
     }
 
     /// Update pool reserve in database
+    #[tracing::instrument(skip(self, reserve), fields(pool_address = %reserve.pool_address))]
     async fn update_pool_reserve(&self, reserve: &PoolReserve) -> Result<()> {
         let pool = self.db.pool();
-        sqlx::query("SELECT upsert_amm_pool_reserve($1, $2, $3, $4, $5, $6, $7)")
+        let trace_context = TraceContext::current();
+        sqlx::query("SELECT upsert_amm_pool_reserve($1, $2, $3, $4, $5, $6, $7, $8, $9)")
             .bind(&reserve.pool_address)
             .bind(reserve.selling_asset_id)
             .bind(reserve.buying_asset_id)
@@ -307,6 +312,8 @@ impl AmmAggregator {
             .bind(reserve.reserve_buying.to_string())
             .bind(reserve.fee_bps)
             .bind(reserve.last_updated_ledger)
+            .bind(trace_context.trace_id)
+            .bind(trace_context.span_id)
             .execute(pool)
             .await?;
 
