@@ -271,3 +271,120 @@ export function useHealth(
     { refreshIntervalMs },
   );
 }
+
+// ---------------------------------------------------------------------------
+// useQuoteStream — WebSocket subscription for quotes
+// ---------------------------------------------------------------------------
+
+export function useQuoteStream(
+  base: string,
+  quote: string,
+  amount: number | undefined,
+) {
+  const [data, setData] = useState<PriceQuote | undefined>(undefined);
+  const [isConnected, setIsConnected] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const debouncedAmount = useDebounced(amount, QUOTE_AMOUNT_DEBOUNCE_MS);
+
+  useEffect(() => {
+    const skip = !base || !quote;
+    if (skip) {
+      setData(undefined);
+      setIsConnected(false);
+      setError(null);
+      return;
+    }
+
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout>;
+    let isMounted = true;
+    let retryCount = 0;
+    let subscriptionId: string | null = null;
+
+    const connect = () => {
+      if (!isMounted) return;
+
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+      const wsProtocol = baseUrl.startsWith('https') ? 'wss' : 'ws';
+      const host = baseUrl.replace(/^https?:\/\//, '');
+      const wsUrl = `${wsProtocol}://${host}/api/v1/ws`;
+
+      try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          if (!isMounted) return;
+          setIsConnected(true);
+          setError(null);
+          retryCount = 0;
+
+          // Send subscribe message
+          const subscribeMsg = {
+            action: 'subscribe',
+            subscription: {
+              base,
+              quote,
+              amount: debouncedAmount !== undefined ? String(debouncedAmount) : undefined,
+            },
+          };
+          ws?.send(JSON.stringify(subscribeMsg));
+        };
+
+        ws.onmessage = (event) => {
+          if (!isMounted) return;
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'subscription_confirmed') {
+              subscriptionId = msg.subscription_id;
+            } else if (msg.type === 'quote_update') {
+              setData(msg.quote);
+            } else if (msg.type === 'error') {
+              setError(new Error(msg.message || 'WebSocket Error'));
+            }
+          } catch (err) {
+            setError(err instanceof Error ? err : new Error('Parse error'));
+          }
+        };
+
+        ws.onclose = () => {
+          if (!isMounted) return;
+          setIsConnected(false);
+          subscriptionId = null;
+
+          // Exponential backoff reconnect
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+          retryCount++;
+          reconnectTimer = setTimeout(connect, delay);
+        };
+
+        ws.onerror = () => {
+          if (isMounted && !error) {
+            setError(new Error('WebSocket connection error'));
+          }
+        };
+      } catch (err) {
+        if (isMounted) {
+          setError(err instanceof Error ? err : new Error('Failed to create WebSocket'));
+        }
+      }
+    };
+
+    connect();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(reconnectTimer);
+      if (ws) {
+        if (subscriptionId && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            action: 'unsubscribe',
+            subscription_id: subscriptionId,
+          }));
+        }
+        ws.close();
+      }
+    };
+  }, [base, quote, debouncedAmount]);
+
+  return { data, isConnected, error };
+}

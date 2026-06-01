@@ -225,6 +225,28 @@ export async function signTransactionWithWallet(
     return res.signedTxXdr;
   }
 
+  if (walletId === "xbull") {
+    const xbull = (window as unknown as Record<string, unknown>).xbull as
+      | { sign: (opts: { xdr: string; network?: string; publicKey?: string }) => Promise<string> }
+      | undefined;
+
+    if (!xbull) {
+      throw new Error("xBull not installed");
+    }
+
+    // Determine network based on passphrase (heuristic used by wallets)
+    const network = networkPassphrase?.includes("Test SDF Network")
+      ? "testnet"
+      : "public";
+
+    try {
+      const signedXdr = await xbull.sign({ xdr, network });
+      return signedXdr;
+    } catch (err: any) {
+      throw new Error(err?.message ?? "Transaction signing failed");
+    }
+  }
+
   throw new Error(`Transaction signing not supported for wallet: ${walletId}`);
 }
 
