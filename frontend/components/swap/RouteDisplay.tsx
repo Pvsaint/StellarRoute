@@ -158,7 +158,18 @@ export function RouteDisplay({
   );
 
   if (isLoading) {
-    return <LoadingState message="Finding best route…" />;
+    return (
+      <div data-testid="route-display" className="rounded-xl border border-border/50 p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="animate-pulse h-5 w-24 bg-gray-200 dark:bg-gray-800 rounded" />
+          <div className="flex gap-2">
+            <div className="animate-pulse h-5 w-16 bg-gray-200 dark:bg-gray-800 rounded" />
+            <div className="animate-pulse h-5 w-16 bg-gray-200 dark:bg-gray-800 rounded" />
+          </div>
+        </div>
+        <div className="animate-pulse h-12 bg-gray-200 dark:bg-gray-800 rounded mt-2" />
+      </div>
+    );
   }
 
   return (
