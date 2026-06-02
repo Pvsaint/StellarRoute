@@ -1672,6 +1672,22 @@ mod tests {
     }
 
     #[test]
+    fn native_usdc_quote_prefers_lowest_executable_direct_price() {
+        let candidates = vec![
+            candidate("amm", "pool-native-usdc", 1.02, 100.0, 30),
+            candidate("sdex", "offer-native-usdc-b", 1.01, 80.0, 0),
+            candidate("sdex", "offer-native-usdc-a", 0.99, 60.0, 0),
+        ];
+
+        let (selected, rationale) =
+            evaluate_single_hop_direct_venues(candidates, 50.0).expect("must select a venue");
+
+        assert_eq!(selected.venue_type, "sdex");
+        assert_eq!(selected.venue_ref, "offer-native-usdc-a");
+        assert_eq!(rationale.selected_source, "sdex:offer-native-usdc-a");
+    }
+
+    #[test]
     fn tie_break_is_deterministic_by_venue_then_ref() {
         let candidates = vec![
             candidate("sdex", "offer2", 1.0, 100.0, 0),
