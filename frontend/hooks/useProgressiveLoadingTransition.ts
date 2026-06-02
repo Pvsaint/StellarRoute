@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useMotionAnimateIn, MOTION_DURATION } from '@/lib/motion';
 
 interface ProgressiveLoadingOptions {
   minimumSkeletonMs?: number;
@@ -12,8 +13,8 @@ interface ProgressiveLoadingState {
   contentClassName: string;
 }
 
-const DEFAULT_MINIMUM_SKELETON_MS = 260;
-const DEFAULT_ENTER_DURATION_MS = 320;
+const DEFAULT_MINIMUM_SKELETON_MS = MOTION_DURATION.SKELETON_EXIT;
+const DEFAULT_ENTER_DURATION_MS = MOTION_DURATION.STANDARD;
 
 export function useProgressiveLoadingTransition(
   isLoading: boolean,
@@ -24,6 +25,11 @@ export function useProgressiveLoadingTransition(
 ): ProgressiveLoadingState {
   const [showSkeleton, setShowSkeleton] = useState(isLoading);
   const [isEntering, setIsEntering] = useState(!isLoading);
+
+  const animateInClass = useMotionAnimateIn(
+    'fade-in slide-in-from-bottom-1',
+    `duration-${Math.round(enterDurationMs / 10) * 10}`,
+  );
 
   const loadingStartedAtRef = useRef<number | null>(isLoading ? Date.now() : null);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,6 +86,6 @@ export function useProgressiveLoadingTransition(
 
   return {
     showSkeleton,
-    contentClassName: isEntering ? 'animate-in fade-in slide-in-from-bottom-1 duration-300' : '',
+    contentClassName: isEntering ? animateInClass : '',
   };
 }
