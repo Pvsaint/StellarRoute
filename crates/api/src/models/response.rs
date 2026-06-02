@@ -819,3 +819,24 @@ mod tests {
         assert_eq!(restored.quote_type, "sell");
     }
 }
+
+// ── Webhook Response Models ───────────────────────────────────────────────────
+
+/// Webhook registration response
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct QuoteExpirationWebhookRegistrationResponse {
+    pub consumer_id: String,
+    pub webhook_url: String,
+    pub enabled: bool,
+}
+
+/// Quote expiration webhook payload
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct QuoteExpirationWebhookPayload {
+    pub event: String,
+    pub timestamp: i64,
+    pub quote_id: String,
+    pub base_asset: String,
+    pub quote_asset: String,
+    pub amount_in: String,
+}

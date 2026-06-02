@@ -1,14 +1,15 @@
 //! API routes
 
+pub mod admin_cache;
+pub mod assets;
 pub mod canary;
+pub mod contract_registry;
 pub mod health;
 pub mod idempotent_quote;
 pub mod kill_switch;
-pub mod admin_cache;
 pub mod metrics;
 pub mod orderbook;
 pub mod pairs;
-pub mod assets;
 pub mod prometheus;
 pub mod quote;
 
@@ -75,12 +76,22 @@ pub fn create_router(state: Arc<AppState>) -> Router {
             "/api/v1/admin/kill-switch",
             post(kill_switch::update_kill_switch),
         )
-        .route(
-            "/api/v1/admin/cache/flush",
-            post(admin_cache::flush_cache),
-        )
+        .route("/api/v1/admin/cache/flush", post(admin_cache::flush_cache))
         // Canary routes
         .route("/api/v1/system/canary/report", get(canary::get_report))
         .route("/api/v1/system/canary/config", post(canary::update_config))
+        // Contract registry routes
+        .route(
+            "/api/v1/contracts/registry",
+            get(contract_registry::list_contract_versions),
+        )
+        .route(
+            "/api/v1/contracts/registry/:contract_name",
+            get(contract_registry::get_contract_version),
+        )
+        .route(
+            "/api/v1/contracts/registry/:contract_name/network/:network",
+            get(contract_registry::get_contract_version_by_network),
+        )
         .with_state(state)
 }

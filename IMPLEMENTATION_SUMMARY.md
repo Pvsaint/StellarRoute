@@ -159,6 +159,7 @@ Route (app)
 ### Milestone
 **M4 — Marketing UI** ✅
 
+<<<<<<< Updated upstream
 ### Wave Program
 Ready for Stellar Wave program submission with **Trivial** complexity rating.
 
@@ -188,3 +189,5 @@ The hero section features:
 
 ### Conclusion
 Issue #523 has been successfully implemented with all acceptance criteria met. The feature is production-ready, fully tested, accessible, and documented.
+
+
