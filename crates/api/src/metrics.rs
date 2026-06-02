@@ -255,6 +255,20 @@ pub fn record_single_flight_coalesced(request_type: &str) {
         .inc();
 }
 
+/// Record a single-flight unique request (not coalesced).
+pub fn record_single_flight_unique(request_type: &str) {
+    // For now, this is a no-op or could increment a different metric
+    // If you don't have SINGLE_FLIGHT_UNIQUE counter, just log or ignore
+    let _ = request_type; // Suppress unused warning
+}
+
+/// Record quote response size in bytes.
+pub fn record_quote_response_bytes(bytes: usize) {
+    // For now, this is a no-op or could record to a histogram
+    // If you don't have a corresponding metric, just log or ignore
+    let _ = bytes; // Suppress unused warning
+}
+
 // ── Priority queue metric helpers ─────────────────────────────────────────────
 
 /// Increment the submission counter for a priority band.

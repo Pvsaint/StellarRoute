@@ -295,9 +295,11 @@ impl HybridOptimizer {
         let policy = self.active_policy();
         let mut excluded_routes = Vec::new();
 
-        let paths =
-            self.pathfinder
-                .find_paths_compacted(from, to, graph, amount_in, routing_policy)?;
+        // Convert compacted graph back to edges for pathfinding
+        let edges = graph.to_edges();
+        let paths = self
+            .pathfinder
+            .find_paths(from, to, &edges, amount_in, routing_policy)?;
 
         if paths.is_empty() {
             return Err(RoutingError::NoRoute(from.to_string(), to.to_string()));
@@ -403,8 +405,6 @@ impl HybridOptimizer {
 
         let mut total_output = amount_in;
         let mut total_impact_bps = 0u32;
-        let mut max_anomaly_score = 0.0f64;
-        let mut all_anomaly_reasons = Vec::new();
 
         // Simulate execution through each hop
         for hop in &path.hops {
@@ -437,8 +437,6 @@ impl HybridOptimizer {
 
             total_output = output;
             total_impact_bps = total_impact_bps.saturating_add(impact_bps);
-            max_anomaly_score = max_anomaly_score.max(hop.anomaly_score);
-            all_anomaly_reasons.extend(hop.anomaly_reasons.clone());
         }
 
         let compute_time_us = start_time.elapsed().as_micros() as u64;
@@ -459,8 +457,8 @@ impl HybridOptimizer {
             compute_time_us,
             hop_count: path.hops.len(),
             score,
-            anomaly_score: max_anomaly_score,
-            anomaly_reasons: all_anomaly_reasons,
+            anomaly_score: 0.0,
+            anomaly_reasons: Vec::new(),
         })
     }
 

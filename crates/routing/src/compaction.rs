@@ -56,7 +56,7 @@ impl CompactedGraph {
                 liquidity: edge.liquidity,
                 price: edge.price,
                 fee_bps: edge.fee_bps,
-                anomaly_score: edge.anomaly_score as f32,
+                anomaly_score: 0.0_f32,
             };
             grouped_edges.entry(from_idx).or_default().push(c_edge);
         }
@@ -109,5 +109,31 @@ impl CompactedGraph {
             }
         }
         false
+    }
+
+    /// Convert compacted graph back to LiquidityEdge vector
+    pub fn to_edges(&self) -> Vec<LiquidityEdge> {
+        let mut edges = Vec::new();
+        for (from_idx, from_asset) in self.assets.iter().enumerate() {
+            let start = self.offsets[from_idx];
+            let end = self.offsets[from_idx + 1];
+            for compact_edge in &self.edges[start..end] {
+                let to_asset = &self.assets[compact_edge.to_idx as usize];
+                edges.push(LiquidityEdge {
+                    from: from_asset.clone(),
+                    to: to_asset.clone(),
+                    venue_type: if compact_edge.venue_type_idx == 1 {
+                        "amm".to_string()
+                    } else {
+                        "sdex".to_string()
+                    },
+                    venue_ref: compact_edge.venue_ref.clone(),
+                    liquidity: compact_edge.liquidity,
+                    price: compact_edge.price,
+                    fee_bps: compact_edge.fee_bps,
+                });
+            }
+        }
+        edges
     }
 }

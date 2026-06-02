@@ -69,6 +69,11 @@ impl StellarRoute {
         e.storage().instance().set(&StorageKey::FeeTo, &fee_to);
         e.storage().instance().set(&StorageKey::Paused, &false);
 
+        upgrade::set_initial_version(
+            &e,
+            _initial_wasm_hash.unwrap_or_else(|| BytesN::from_array(&e, &[0u8; 32])),
+        );
+
         storage::set_last_ttl_extension(&e, e.ledger().sequence());
 
         events::initialized(&e, admin, fee_rate);

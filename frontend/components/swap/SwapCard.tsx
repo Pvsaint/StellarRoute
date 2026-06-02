@@ -30,6 +30,9 @@ import { useCompactMode } from '@/hooks/useCompactMode';
 import { useShareableQuote } from '@/hooks/useShareableQuote';
 import { ShareQuoteButton } from './ShareQuoteButton';
 import { NetworkMismatchBanner } from '@/components/shared/NetworkMismatchBanner';
+import { useWallet } from '@/components/providers/wallet-provider';
+import { signTransactionWithWallet } from '@/lib/wallet';
+import { submitToHorizon, getNetworkPassphrase } from '@/lib/wallet/submit';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useSwapI18n } from '@/lib/swap-i18n';
@@ -125,7 +128,7 @@ export function SwapCard() {
     updateExtendedRouteDetails,
   } = useExpertSettings();
 
-  const [isConnected, setIsConnected] = useState(false);
+  const { address: walletAddress, isConnected, walletId, network: walletAppNetwork, networkMismatch } = useWallet();
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<AlternativeRoute | null>(
@@ -159,6 +162,10 @@ export function SwapCard() {
   });
 
   const optimistic = useOptimisticSwap({
+    signTransaction: walletId
+      ? (xdr) => signTransactionWithWallet(xdr, walletId, getNetworkPassphrase(walletAppNetwork))
+      : undefined,
+    submitTransaction: (signedXdr) => submitToHorizon(signedXdr, walletAppNetwork),
     rollbackTarget: {
       setFromToken,
       setToToken,
@@ -200,6 +207,7 @@ export function SwapCard() {
   const buttonState = useMemo<SwapButtonState>(() => {
     if (optimistic.submitLock) return 'executing';
     if (!isConnected) return 'no_wallet';
+    if (networkMismatch) return 'no_wallet'; // Swap disabled while network mismatch
     if (!fromAmount || parseFloat(fromAmount) === 0) return 'no_amount';
     if (quote.error) return 'error';
     if (requiresFreshQuote) return 'refreshing_quote';
@@ -213,6 +221,7 @@ export function SwapCard() {
     fromAmount,
     fromBalance,
     isConnected,
+    networkMismatch,
     optimistic.submitLock,
     quote.error,
     quote.isStale,
@@ -308,7 +317,7 @@ export function SwapCard() {
       minReceived: `${(parseFloat(toAmount || '0') * (1 - slippage / 100)).toFixed(4)} ${toSymbol}`,
       networkFee: quote.fee ? `${quote.fee.toFixed(5)} XLM` : '0.00001 XLM',
       routePath: [],
-      walletAddress: 'mock_wallet_address',
+      walletAddress: walletAddress ?? '',
       snapshot: snap,
     });
   }, [
@@ -527,22 +536,7 @@ export function SwapCard() {
                   <Minimize2 className="h-4.5 w-4.5 text-muted-foreground" />
                 )}
               </Button>
-              <SettingsPanel
-                slippage={slippage}
-                onSlippageChange={setSlippage}
-                deadline={deadline}
-                onDeadlineChange={setDeadline}
-                expertMode={expertMode}
-                bypassConfirmation={bypassConfirmation}
-                extendedRouteDetails={extendedRouteDetails}
-                onExpertModeChange={updateExpertMode}
-                onBypassConfirmationChange={updateBypassConfirmation}
-                onExtendedRouteDetailsChange={updateExtendedRouteDetails}
-                onReset={() => {
-                  reset();
-                  setSelectedRoute(null);
-                }}
-              />
+              <SettingsPanel />
               <Button
                 variant="ghost"
                 size="icon"
@@ -650,7 +644,6 @@ export function SwapCard() {
                 amountOut={selectedRoute?.expectedAmount ?? toAmount}
                 isLoading={quote.loading}
                 onSelect={setSelectedRoute}
-                extendedRouteDetails={extendedRouteDetails}
               />
               {/* Share Quote Button */}
               <div className="flex justify-end">
@@ -719,7 +712,7 @@ export function SwapCard() {
             <SwapButton
               state={buttonState}
               onSwap={handleSwap}
-              onConnectWallet={() => setIsConnected(true)}
+              onConnectWallet={() => {}} // Connection managed by WalletProvider
               isLoading={quote.loading}
             />
           </div>
