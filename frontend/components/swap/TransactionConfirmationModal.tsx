@@ -35,6 +35,7 @@ export interface TransactionConfirmationModalProps {
   onResubmit: () => void;
   onDismiss: () => void;
   onDone: () => void;
+  onSwapAgain?: () => void;
 }
 
 const STATUS_CONFIG = {
@@ -114,6 +115,7 @@ export function TransactionConfirmationModal({
   onResubmit,
   onDismiss,
   onDone,
+  onSwapAgain,
 }: TransactionConfirmationModalProps) {
   const primaryActionRef = useRef<HTMLButtonElement>(null);
   const prefersReducedMotion = useReducedMotion();
@@ -205,7 +207,12 @@ export function TransactionConfirmationModal({
 
           {/* Confirmed: dedicated post-swap success content */}
           {status === 'confirmed' && txHash && (
-            <PostSwapSuccessScreen txHash={txHash} />
+            <PostSwapSuccessScreen
+              txHash={txHash}
+              tradeParams={tradeParams}
+              onDone={onDone}
+              onSwapAgain={onSwapAgain}
+            />
           )}
         </div>
 

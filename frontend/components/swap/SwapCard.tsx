@@ -20,6 +20,7 @@ import { useOptimisticSwap } from '@/hooks/useOptimisticSwap';
 import type { PreSubmitSnapshot } from '@/types/transaction';
 import { useOptionalTradingPair } from '@/contexts/TradingPairContext';
 import { useExpertSettings } from '@/hooks/useExpertSettings';
+import { useWalletBalance } from '@/hooks/useWalletBalance';
 import {
   SESSION_RECOVERY_THRESHOLD_MS,
   type TradeFormSnapshot,
@@ -49,7 +50,7 @@ export function SwapCard() {
   const { t } = useSwapI18n();
   const { isCompact, toggleCompact } = useCompactMode();
   const tradingPairContext = useOptionalTradingPair();
-  
+
   // Wrap useSearchParams in try-catch for SSR
   let parseParams: ReturnType<typeof useShareableQuote>['parseParams'] | null =
     null;
@@ -93,7 +94,7 @@ export function SwapCard() {
   // Initialize from URL parameters on mount
   useEffect(() => {
     if (!parseParams) return;
-    
+
     const urlParams = parseParams();
     if (!urlParams) return;
 
@@ -128,7 +129,21 @@ export function SwapCard() {
     updateExtendedRouteDetails,
   } = useExpertSettings();
 
-  const { address: walletAddress, isConnected, walletId, network: walletAppNetwork, networkMismatch } = useWallet();
+  const {
+    address: walletAddress,
+    isConnected,
+    walletId,
+    network: walletAppNetwork,
+    networkMismatch,
+  } = useWallet();
+
+  // Fetch real wallet balance for the selected from-asset
+  const balanceState = useWalletBalance({
+    address: walletAddress,
+    asset: fromToken,
+    isConnected,
+    network: walletAppNetwork,
+  });
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<AlternativeRoute | null>(
@@ -163,9 +178,15 @@ export function SwapCard() {
 
   const optimistic = useOptimisticSwap({
     signTransaction: walletId
-      ? (xdr) => signTransactionWithWallet(xdr, walletId, getNetworkPassphrase(walletAppNetwork))
+      ? (xdr) =>
+          signTransactionWithWallet(
+            xdr,
+            walletId,
+            getNetworkPassphrase(walletAppNetwork)
+          )
       : undefined,
-    submitTransaction: (signedXdr) => submitToHorizon(signedXdr, walletAppNetwork),
+    submitTransaction: (signedXdr) =>
+      submitToHorizon(signedXdr, walletAppNetwork),
     rollbackTarget: {
       setFromToken,
       setToToken,
@@ -184,23 +205,34 @@ export function SwapCard() {
     if (optimistic.status === 'pending') {
       toast.loading('Signing transaction...', { id: 'swap-toast' });
     } else if (optimistic.status === 'submitted') {
-      toast.loading('Transaction submitted, awaiting confirmation...', { id: 'swap-toast' });
+      toast.loading('Transaction submitted, awaiting confirmation...', {
+        id: 'swap-toast',
+      });
     } else if (optimistic.status === 'confirmed') {
       toast.success('Swap confirmed successfully!', { id: 'swap-toast' });
       setIsModalOpen(false);
       reset();
       setSelectedRoute(null);
     } else if (optimistic.status === 'failed') {
-      toast.error(optimistic.errorMessage || 'Swap failed. Please try again.', { id: 'swap-toast' });
+      toast.error(optimistic.errorMessage || 'Swap failed. Please try again.', {
+        id: 'swap-toast',
+      });
       setIsModalOpen(false);
     } else if (optimistic.status === 'dropped') {
       toast.error('Transaction timed out.', { id: 'swap-toast' });
       setIsModalOpen(false);
     }
-  }, [optimistic.status, optimistic.errorMessage, bypassConfirmation, isModalOpen, reset, setSelectedRoute]);
+  }, [
+    optimistic.status,
+    optimistic.errorMessage,
+    bypassConfirmation,
+    isModalOpen,
+    reset,
+    setSelectedRoute,
+  ]);
 
-  // Mock balance
-  const fromBalance = '100.00';
+  // Replace hardcoded balance with real wallet balance
+  const fromBalance = balanceState.balance ?? '0';
   const fromSymbol = fromToken === 'native' ? 'XLM' : fromToken.split(':')[0];
   const toSymbol = toToken === 'native' ? 'XLM' : toToken.split(':')[0];
 
@@ -298,6 +330,12 @@ export function SwapCard() {
     }
   }, [closeRecoveryModal, quote, recoveryReason, restorePending]);
 
+  // Handle "Swap Again" action: close modal but keep form state intact
+  const handleSwapAgain = useCallback(() => {
+    setIsModalOpen(false);
+    // keep tokens/amounts as-is so user can quickly modify and swap again
+  }, []);
+
   const handleConfirm = useCallback(() => {
     const snap: PreSubmitSnapshot = {
       fromToken,
@@ -342,20 +380,30 @@ export function SwapCard() {
   }, [quote.priceImpact, handleConfirm]);
 
   const handleMax = useCallback(() => {
-    setFromAmount(fromBalance);
-  }, [fromBalance, setFromAmount]);
+    // Use spendableBalance for XLM (accounts for base reserve)
+    // Use regular balance for other assets
+    const maxAmount =
+      fromToken === 'native' ? balanceState.spendableBalance : fromBalance;
+    setFromAmount(maxAmount ?? '0');
+  }, [fromToken, balanceState.spendableBalance, fromBalance, setFromAmount]);
 
   const handlePresetSelect = useCallback(
     (percentage: number) => {
       const balanceNum = parseFloat(fromBalance);
       if (isNaN(balanceNum) || balanceNum === 0) return;
 
-      const amount = balanceNum * percentage;
+      // For native assets, respect the spendable balance limit
+      const maxSpendable =
+        fromToken === 'native'
+          ? parseFloat(balanceState.spendableBalance ?? '0')
+          : balanceNum;
+
+      const amount = maxSpendable * percentage;
       // Round to 7 decimals to respect asset precision
       const rounded = Math.floor(amount * 10000000) / 10000000;
       setFromAmount(rounded.toString());
     },
-    [fromBalance, setFromAmount]
+    [fromBalance, fromToken, balanceState.spendableBalance, setFromAmount]
   );
 
   const handleSwitchTokens = useCallback(() => {
@@ -493,7 +541,8 @@ export function SwapCard() {
         className={cn(
           'relative overflow-hidden border-border/40 bg-background/60 backdrop-blur-xl shadow-2xl rounded-[32px] transition-all duration-500 hover:shadow-primary/5',
           isCompact && 'rounded-2xl',
-          expertMode && 'border-amber-500/30 hover:shadow-amber-500/10 shadow-amber-500/5'
+          expertMode &&
+            'border-amber-500/30 hover:shadow-amber-500/10 shadow-amber-500/5'
         )}
       >
         {/* Animated Background Gradients */}
@@ -571,6 +620,8 @@ export function SwapCard() {
                   onMax={handleMax}
                   onPresetSelect={handlePresetSelect}
                   balance={`${fromBalance} ${fromSymbol}`}
+                  balanceLoading={balanceState.loading}
+                  balanceError={!!balanceState.error}
                   showPresets={isConnected}
                   className="flex-1"
                 />
@@ -769,6 +820,7 @@ export function SwapCard() {
             reset();
             setSelectedRoute(null);
           }}
+          onSwapAgain={handleSwapAgain}
         />
       )}
 
