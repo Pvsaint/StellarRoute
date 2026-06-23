@@ -16,6 +16,8 @@ Use these commands from repo root unless noted.
 ### Local dependencies
 - Start Postgres + Redis:
   - `docker-compose up -d`
+- Wait for databases to be healthy:
+  - `./scripts/wait-for-dbs.sh`
 - Check service health:
   - `docker-compose ps`
 

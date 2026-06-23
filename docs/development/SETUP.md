@@ -59,11 +59,14 @@ cd stellarroute
 
 ```bash
 docker-compose up -d
+./scripts/wait-for-dbs.sh
 ```
 
-This will start:
-- PostgreSQL on port 5432
-- Redis on port 6379
+This will start and verify the health of:
+- PostgreSQL on port 5432 (checked via `pg_isready`)
+- Redis on port 6379 (checked via `ping`)
+
+The `./scripts/wait-for-dbs.sh` script will block and verify both databases are fully initialized and healthy before you build or run the services.
 
 ### 6. Build the Project
 
@@ -244,14 +247,17 @@ docker-compose down --volumes --remove-orphans
 docker-compose up -d
 ```
 
-#### PostgreSQL connection refused after `docker-compose up -d`
+#### PostgreSQL or Redis connection refused after `docker-compose up -d`
 
-The container may still be starting. Wait for the health check to pass:
+The containers may still be starting. You can use the wait script to block until both services are fully healthy:
 
 ```bash
+./scripts/wait-for-dbs.sh
+```
+
+Alternatively, check their statuses manually:
+```bash
 docker-compose ps   # STATUS should show "(healthy)"
-# or wait explicitly
-until docker-compose exec postgres pg_isready -U stellarroute; do sleep 1; done
 ```
 
 #### Database connection failures from the application
